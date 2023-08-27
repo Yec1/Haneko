@@ -14,6 +14,11 @@ client.on("interactionCreate", async (interaction) => {
 
   await interaction.deferUpdate().catch(() => {});
 
+  const { customId } = interaction;
+  const ownerId = customId.match(/-(\d+)$/)[1];
+  const userId = interaction.user.id;
+  const teamPath = `${ownerId}.team`;
+
   if (
     !interaction.guild.members.me.permissions.has(
       PermissionsBitField.Flags.SendMessages
@@ -24,22 +29,15 @@ client.on("interactionCreate", async (interaction) => {
   )
     return;
 
-  const ownerId = interaction.customId.match(/-(\d+)$/)[1];
-  let id = interaction.user.id;
-  const teamPath = `${ownerId}.team`;
+  let id = userId;
+  if (await client.db.has(teamPath)) {
+    const team = await client.db.get(teamPath);
+    if (team.length > 0) {
+      id = userId === ownerId ? userId : ownerId;
+    }
+  }
 
-  if (
-    (await client.db.has(teamPath)) &&
-    (await client.db.get(teamPath)?.length) != 0
-  )
-    id = interaction.user.id == ownerId ? interaction.user.id : ownerId;
-
-  if (
-    (await client.db.has(teamPath))
-      ? !interaction.customId.endsWith(id) &&
-        !(await client.db.get(teamPath)?.includes(id))
-      : !interaction.customId.endsWith(id)
-  ) {
+  if (!customId.endsWith(id)) {
     return interaction.followUp({
       embeds: [
         new EmbedBuilder()
