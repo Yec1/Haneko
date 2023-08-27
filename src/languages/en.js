@@ -36,7 +36,7 @@ const langs = {
     "Removed <z> from your team. Now they cannot manage your books.",
   team_list: "Team members of <z>",
 
-  book_onlyself: "You can only operate your own books!",
+  book_onlyself: "You can only control your own books!",
   book_close: "This book has been closed by <z>.",
 };
 
