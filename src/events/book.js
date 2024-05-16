@@ -222,7 +222,9 @@ client.on("interactionCreate", async interaction => {
 });
 
 async function saveUserOptions(userid, option, id, title) {
-	const userdb = (await db.get(`${userid}`)) || [];
+	const userdb = (await db.get(`${userid}`)) || {};
+	if (!userdb[option]) userdb[option] = [];
+
 	const index = userdb[option].findIndex(item => item.id === id);
 
 	if (index !== -1) {
