@@ -1,12 +1,20 @@
+# pkg
 node_modules
 
-.env
-test.js
-json.sqlite
-croxydb
-
-# Lock File
+# installers
 package-lock.json
-pnpm-lock.yaml
 yarn.lock
+pnpm-lock.yaml
+run.bat
+json.sqlite
+runner.log
 yarn-error.log
+
+.VSCodeCounter/
+
+# env
+.env
+.env.*
+env.development
+env.production
+*.tmp

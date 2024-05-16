@@ -1,32 +1,27 @@
-require("dotenv").config();
-const {
-  Client,
-  GatewayIntentBits,
-  Partials,
-  Collection,
-} = require("discord.js");
-const { QuickDB } = require("quick.db");
-const db = new QuickDB();
+import dotenv from "dotenv";
+import fs from "fs";
+Object.assign(process.env, dotenv.parse(fs.readFileSync("./.env")));
+
+import "./services/index.js";
+import { Client, GatewayIntentBits, Partials } from "discord.js";
+import { getInfo } from "discord-hybrid-sharding";
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
-  partials: [
-    Partials.Channel,
-    Partials.Message,
-    Partials.User,
-    Partials.GuildMember,
-    Partials.Reaction,
-  ],
+	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+	partials: [
+		Partials.Channel,
+		Partials.Message,
+		Partials.User,
+		Partials.GuildMember,
+		Partials.Reaction
+	],
+	allowedMentions: {
+		parse: ["users"],
+		repliedUser: false
+	},
+	shards: getInfo().SHARD_LIST,
+	shardCount: getInfo().TOTAL_SHARDS
 });
-module.exports = client;
 
-// Global Variables
-client.db = db;
-client.commands = new Collection();
-client.slashCommands = new Collection();
-require("./handler")(client);
-require("./util/index");
-
-client.login(
-  process.env.NODE_ENV === "dev" ? process.env.TESTOKEN : process.env.TOKEN
-);
+export { client };
+import("./main.js");

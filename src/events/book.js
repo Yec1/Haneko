@@ -1,114 +1,164 @@
-const client = require("../index");
-const { getPage } = require("../util/book");
-const {
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  PermissionsBitField,
-} = require("discord.js");
-const { i18nMixin, tl3 } = require("../util/i18n");
+import { client } from "../index.js";
+import {
+  getBookPage,
+  getBookComponents,
+  getShelfBook,
+  getShelfComponents,
+  openBook,
+} from "../services/book.js";
+import { EmbedBuilder, ActionRowBuilder } from "discord.js";
+import { i18nMixin, toI18nLang } from "../services/i18n.js";
+import { NHentai } from "@shineiichijo/nhentai-ts";
+const nhentai = new NHentai();
+const db = client.db;
 
 client.on("interactionCreate", async (interaction) => {
-  const tr = i18nMixin(tl3(interaction.locale) || "en");
-  if (!interaction.isButton()) return;
+  const tr = i18nMixin(toI18nLang(interaction.locale) || "en");
+  if (interaction.isButton()) {
+    await interaction.deferUpdate().catch(() => {});
+    const { customId } = interaction;
 
-  await interaction.deferUpdate().catch(() => {});
+    if (customId.startsWith("shelf")) {
+      const shelfDB = await db.get(`${interaction.user.id}.shelf`);
+      const isShelfBackD = customId.startsWith("shelfBackD-");
+      const isShelfNextD = customId.startsWith("shelfNextD-");
+      const isShelfBack = customId.startsWith("shelfBack-");
+      const isShelfNext = customId.startsWith("shelfNext-");
 
-  const { customId } = interaction;
-  const ownerId = customId.match(/-(\d+)$/)[1];
-  const userId = interaction.user.id;
-  const teamPath = `${ownerId}.team`;
+      let shelfPage = shelfDB.currentPage;
+      let shelfIndex = shelfDB.currentIndex;
 
-  if (
-    !interaction.guild.members.me.permissions.has(
-      PermissionsBitField.Flags.SendMessages
-    ) ||
-    interaction.customId == "info_s_refresh" ||
-    interaction.customId == "info_s_switch" ||
-    interaction.customId.startsWith("shelf")
-  )
-    return;
+      if (isShelfBackD || isShelfNextD) {
+        shelfPage = isShelfBackD
+          ? shelfPage - 1 < 1
+            ? shelfDB.totalPages
+            : shelfPage - 1
+          : shelfPage + 1 > shelfDB.totalPages
+            ? 1
+            : shelfPage + 1;
+        shelfIndex = 1;
+        await db.set(`${interaction.user.id}.shelf.currentPage`, shelfPage);
+      }
 
-  let id = userId;
-  if (await client.db.has(teamPath)) {
-    const team = await client.db.get(teamPath);
-    if (team.length > 0) {
-      id = userId === ownerId ? userId : ownerId;
+      if (isShelfBack || isShelfNext) {
+        shelfIndex = isShelfBack
+          ? shelfIndex - 1 < 1
+            ? shelfIndex
+            : shelfIndex - 1
+          : shelfIndex + 1 > 29
+            ? shelfPage + 1
+            : shelfIndex + 1;
+      }
+
+      await db.set(`${interaction.user.id}.shelf.currentIndex`, shelfIndex);
+
+      const res =
+        shelfDB.name != null
+          ? shelfDB.type == "searchwithtag"
+            ? await nhentai.searchWithTag(shelfDB.name, {
+                page: parseInt(shelfPage),
+              })
+            : await nhentai.search(shelfDB.name, {
+                page: parseInt(shelfPage),
+              })
+          : await nhentai.explore(parseInt(shelfPage));
+
+      if (customId.startsWith("shelfCheck"))
+        return interaction.message.edit(
+          await openBook(
+            tr,
+            interaction,
+            await nhentai.getDoujin(res.data[shelfIndex - 1].id)
+          )
+        );
+
+      const { backD, back, page, next, nextD, check } = getShelfComponents(
+        tr,
+        interaction.user.id,
+        shelfIndex,
+        res
+      );
+
+      return interaction.message.edit({
+        embeds: [getShelfBook(res.data[shelfIndex - 1])],
+        components: [
+          new ActionRowBuilder().addComponents(backD, back, page, next, nextD),
+          new ActionRowBuilder().addComponents(check),
+        ],
+      });
+    } else {
+      const ownerId = customId.match(/-(\d+)$/)[1];
+      const userId = interaction.user.id;
+      const teamPath = `${ownerId}.team`;
+
+      let id = userId;
+      if (await db.has(teamPath)) {
+        const team = await client.db.get(teamPath);
+        if (team.length > 0) id = userId === ownerId ? userId : ownerId;
+      }
+
+      if (!customId.endsWith(id)) {
+        return interaction.followUp({
+          embeds: [
+            new EmbedBuilder()
+              .setThumbnail(
+                "https://media.discordapp.net/attachments/1057244827688910850/1110552508369219584/discord_1.gif"
+              )
+              .setTitle(tr("book_onlyself"))
+              .setColor("#E06469"),
+          ],
+          ephemeral: true,
+        });
+      }
+
+      const book = await db.get(`${ownerId}.book`);
+      let page = book.currentPage;
+      const isBookBack = customId.startsWith("bookBack-");
+      const isBookNext = customId.startsWith("bookNext-");
+
+      if (isBookBack || isBookNext) {
+        page = isBookBack
+          ? page - 1 < 1
+            ? book.totalPages
+            : page - 1
+          : page + 1 > book.totalPages
+            ? 1
+            : page + 1;
+        await db.set(`${ownerId}.book.currentPage`, page);
+      }
+      const { cmdMenu, tagMenu, bookBack, bookPage, bookNext } =
+        getBookComponents(tr, ownerId, await db.get(`${ownerId}.book`));
+
+      return interaction.message.edit({
+        embeds: [getBookPage(book, page)],
+        components: [
+          new ActionRowBuilder().addComponents(bookBack, bookPage, bookNext),
+          new ActionRowBuilder().addComponents(cmdMenu),
+          new ActionRowBuilder().addComponents(tagMenu),
+        ],
+      });
+    }
+  } else if (interaction.isStringSelectMenu()) {
+    await interaction.deferUpdate().catch(() => {});
+    const customId = interaction.values[0];
+    if (customId.startsWith("tag")) return;
+    const ownerId = customId.match(/-(\d+)$/)[1];
+    const book = await db.get(`${ownerId}.book`);
+    const { cmdMenu, tagMenu, bookBack, bookPage, bookNext } =
+      getBookComponents(tr, ownerId, await db.get(`${ownerId}.book`));
+
+    if (customId.startsWith("bookOpen-")) {
+      return interaction.message.edit({
+        embeds: [getBookPage(book, page)],
+        components: [
+          new ActionRowBuilder().addComponents(bookBack, bookPage, bookNext),
+          new ActionRowBuilder().addComponents(cmdMenu),
+          new ActionRowBuilder().addComponents(tagMenu),
+        ],
+      });
+    } else if (customId.startsWith("bookStop-")) {
+      await db.delete(`${ownerId}.book`);
+      return interaction.message.delete();
     }
   }
-
-  if (!customId.endsWith(id)) {
-    return interaction.followUp({
-      embeds: [
-        new EmbedBuilder()
-          .setThumbnail(
-            "https://media.discordapp.net/attachments/1057244827688910850/1110552508369219584/discord_1.gif"
-          )
-          .setTitle(tr("book_onlyself"))
-          .setColor("#E06469"),
-      ],
-      ephemeral: true,
-    });
-  }
-
-  const book = await client.db.get(`${ownerId}.book`);
-  let page = book.currentPage;
-
-  if (interaction.customId.startsWith("bookback-")) {
-    page = page - 1 < 1 ? book.num_pages : page - 1;
-  } else if (interaction.customId.startsWith("booknext-")) {
-    page = page + 1 > book.num_pages ? 1 : page + 1;
-  } else if (interaction.customId.startsWith("bookopen-")) {
-    return interaction.message.edit({
-      embeds: [await getPage(ownerId, book, page)],
-      components: [
-        new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`bookback-${ownerId}`)
-            .setEmoji("⬅")
-            .setStyle(2),
-          new ButtonBuilder()
-            .setCustomId(`bookstop-${ownerId}`)
-            .setEmoji("⛔")
-            .setStyle(4),
-          new ButtonBuilder()
-            .setCustomId(`booknext-${ownerId}`)
-            .setEmoji("➡")
-            .setStyle(2)
-        ),
-      ],
-    });
-  } else if (interaction.customId.startsWith("bookstop-")) {
-    return interaction.message.edit({
-      embeds: [
-        new EmbedBuilder()
-          .setColor("#FDCEDF")
-          .setTitle(book.title)
-          .setDescription(
-            tr("book_close", {
-              z: `<@${interaction.user.id}>`,
-            })
-          ),
-      ],
-      components: [
-        new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`bookopen-${ownerId}`)
-            .setEmoji("🔓")
-            .setStyle(1),
-          new ButtonBuilder()
-            .setCustomId(`bookdelete-${ownerId}`)
-            .setEmoji("🗑")
-            .setStyle(2)
-        ),
-      ],
-    });
-  } else if (interaction.customId.startsWith("bookdelete-")) {
-    await client.db.delete(`${ownerId}.book`);
-    return interaction.message.delete();
-  }
-
-  return interaction.message.edit({
-    embeds: [await getPage(ownerId, book, page)],
-  });
 });
