@@ -75,29 +75,17 @@ client.on("interactionCreate", async interaction => {
 				);
 
 			const filter = shelfDB.filter;
-			let searchFunction;
-			switch (filter) {
-				case "tag":
-					searchFunction = nhentai.searchWithTag;
-					break;
-				case "artist":
-					searchFunction = nhentai.searchWithArtist;
-					break;
-				case "character":
-					searchFunction = nhentai.searchWithCharacter;
-					break;
-				case "parodies":
-					searchFunction = nhentai.searchWithParody;
-					break;
-				default:
-					searchFunction = nhentai.search;
-			}
-
 			const res =
 				shelfDB.name != null
-					? await searchFunction(shelfDB.name, {
-							page: parseInt(shelfPage)
-						})
+					? filter == "tag"
+						? await nhentai.searchWithTag(query)
+						: filter == "artist"
+							? await nhentai.searchWithArtist(query)
+							: filter == "character"
+								? await nhentai.searchWithCharacter(query)
+								: filter == "parodies"
+									? await nhentai.searchWithParody(query)
+									: await nhentai.search(query)
 					: await nhentai.explore(parseInt(shelfPage));
 
 			if (customId.startsWith("shelfCheck"))
