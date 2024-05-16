@@ -84,7 +84,7 @@ async function openBookShelf(tr, interaction, res, type, filter, name) {
 			),
 			new ActionRowBuilder().addComponents(
 				check,
-				userdb?.watchlater.some(
+				userdb?.watchlater?.some(
 					item => item.id === res.data[index - 1].id
 				)
 					? watchlaterOn
