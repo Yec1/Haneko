@@ -8,6 +8,8 @@ const langs = {
 	characters: "角色",
 	tags: "標籤",
 	languages: "語言",
+	openMenu: "快速觀看選單",
+	removeMenu: "移除選項",
 	cmdMenu: "可執行選項",
 	tagMenu: "其他資訊",
 	notNsfw: "請在 NSFW 頻道使用這個指令",
@@ -20,10 +22,14 @@ const langs = {
 	watchlaterOn: "已添加至稍後觀看",
 	favoriteOff: "添加至收藏",
 	favoriteOn: "已添加至收藏",
-	list_empty: "清單是空的！",
-	list_title: "<z>清單",
 	favorite: "收藏",
 	watchlater: "稍後觀看",
+
+	list_empty: "清單是空的！",
+	list_title: "<name> 的<category>清單",
+	list_removeOtherFailed:
+		"無法移除其他人清單中的書本！請嘗試移除自己的書本！",
+	list_removeSuccess: "您已成功移除<category>中的 <book>！",
 
 	nsfw_noper: "你需要 `編輯頻道` 權限才能使用這個指令",
 	nsfw_unlock: "🔓 現在不需要在 NSFW 頻道就可以看本了",

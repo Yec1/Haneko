@@ -4,12 +4,14 @@ import {
 	getBookComponents,
 	getShelfBook,
 	getShelfComponents,
-	openBook
+	openBook,
+	getLists,
+	getListEmbed,
+	getListComponents
 } from "../services/book.js";
 import { EmbedBuilder, ActionRowBuilder } from "discord.js";
 import { i18nMixin, toI18nLang } from "../services/i18n.js";
 import { NHentai } from "@shineiichijo/nhentai-ts";
-import { title } from "process";
 const nhentai = new NHentai();
 const db = client.db;
 
@@ -60,7 +62,43 @@ client.on("interactionCreate", async interaction => {
 						: shelfIndex + 1;
 			}
 
+			const filter = shelfDB.filter;
+			let searchFunction;
+			switch (filter) {
+				case "tag":
+					searchFunction = nhentai.searchWithTag;
+					break;
+				case "artist":
+					searchFunction = nhentai.searchWithArtist;
+					break;
+				case "character":
+					searchFunction = nhentai.searchWithCharacter;
+					break;
+				case "parodies":
+					searchFunction = nhentai.searchWithParody;
+					break;
+				default:
+					searchFunction = nhentai.search;
+			}
+
+			const res =
+				shelfDB.name != null
+					? await searchFunction(shelfDB.name, {
+							page: parseInt(shelfPage)
+						})
+					: await nhentai.explore(parseInt(shelfPage));
+
+			await db.set(
+				`${interaction.user.id}.shelf.currentBookId`,
+				res.data[shelfIndex - 1].id
+			);
+			await db.set(
+				`${interaction.user.id}.shelf.currentBookTitle`,
+				res.data[shelfIndex - 1].title
+			);
+
 			if (isWatchlater || isFavorite) {
+				const shelfDB = await db.get(`${interaction.user.id}.shelf`);
 				const option = isWatchlater ? "watchlater" : "favorite";
 				await saveUserOptions(
 					interaction.user.id,
@@ -73,36 +111,6 @@ client.on("interactionCreate", async interaction => {
 					`${interaction.user.id}.shelf.currentIndex`,
 					shelfIndex
 				);
-
-			const filter = shelfDB.filter;
-			const res =
-				shelfDB.name != null
-					? filter == "tag"
-						? await nhentai.searchWithTag(shelfDB.name, {
-								page: parseInt(shelfPage)
-							})
-						: filter == "artist"
-							? await nhentai.searchWithArtist(shelfDB.name, {
-									page: parseInt(shelfPage)
-								})
-							: filter == "character"
-								? await nhentai.searchWithCharacter(
-										shelfDB.name,
-										{
-											page: parseInt(shelfPage)
-										}
-									)
-								: filter == "parodies"
-									? await nhentai.searchWithParody(
-											shelfDB.name,
-											{
-												page: parseInt(shelfPage)
-											}
-										)
-									: await nhentai.search(shelfDB.name, {
-											page: parseInt(shelfPage)
-										})
-					: await nhentai.explore(parseInt(shelfPage));
 
 			if (customId.startsWith("shelfCheck"))
 				return interaction.message.edit(
@@ -152,6 +160,48 @@ client.on("interactionCreate", async interaction => {
 					)
 				]
 			});
+		} else if (customId.startsWith("list")) {
+			const isListBack = customId.startsWith("listBack-");
+			const isListNext = customId.startsWith("listNext-");
+			const isListRefresh = customId.startsWith("listRefresh-");
+
+			if (isListBack || isListNext || isListRefresh) {
+				const category = customId.split("-")[1];
+				const userId = customId.split("-")[2];
+				const userdb = await db.get(`${userId}.${category}`);
+				const listDB = await db.get(`${userId}.list`);
+				let currentPage = listDB.currentPage;
+				const { totalPages } = getLists(userdb);
+
+				currentPage = isListBack
+					? (currentPage - 1 + totalPages.length) % totalPages.length
+					: (currentPage + 1) % totalPages.length;
+
+				await db.set(`${interaction.user.id}.list`, {
+					currentPage: currentPage
+				});
+
+				return interaction
+					.editReply({
+						embeds: [
+							getListEmbed(
+								tr,
+								interaction,
+								category,
+								totalPages,
+								currentPage
+							)
+						],
+						components: getListComponents(
+							tr,
+							interaction.user.id,
+							totalPages,
+							currentPage,
+							category
+						)
+					})
+					.catch(() => {});
+			}
 		} else {
 			const ownerId = customId.match(/-(\d+)$/)[1];
 			const userId = interaction.user.id;
@@ -193,7 +243,11 @@ client.on("interactionCreate", async interaction => {
 				await db.set(`${ownerId}.book.currentPage`, page);
 			}
 			const { cmdMenu, tagMenu, bookBack, bookPage, bookNext } =
-				getBookComponents(tr, ownerId, await db.get(`${ownerId}.book`));
+				await getBookComponents(
+					tr,
+					ownerId,
+					await db.get(`${ownerId}.book`)
+				);
 
 			return interaction.message.edit({
 				embeds: [getBookPage(book, page)],
@@ -212,12 +266,22 @@ client.on("interactionCreate", async interaction => {
 		await interaction.deferUpdate().catch(() => {});
 		const customId = interaction.values[0];
 		if (customId.startsWith("tag")) return;
+		const isBookOpen = customId.startsWith("bookOpen-");
+		const isBookStop = customId.startsWith("bookStop-");
+		const isBookWatchlater = customId.startsWith("bookWatchlater-");
+		const isBookFavorite = customId.startsWith("bookFavorite-");
+		const islistRemove = customId.startsWith("listRemove-");
+		const islistOpen = customId.startsWith("listOpen-");
 		const ownerId = customId.match(/-(\d+)$/)[1];
 		const book = await db.get(`${ownerId}.book`);
-		const { cmdMenu, tagMenu, bookBack, bookPage, bookNext } =
-			getBookComponents(tr, ownerId, await db.get(`${ownerId}.book`));
 
-		if (customId.startsWith("bookOpen-")) {
+		if (isBookOpen) {
+			const { cmdMenu, tagMenu, bookBack, bookPage, bookNext } =
+				await getBookComponents(
+					tr,
+					ownerId,
+					await db.get(`${ownerId}.book`)
+				);
 			return interaction.message.edit({
 				embeds: [getBookPage(book, page)],
 				components: [
@@ -230,9 +294,89 @@ client.on("interactionCreate", async interaction => {
 					new ActionRowBuilder().addComponents(tagMenu)
 				]
 			});
-		} else if (customId.startsWith("bookStop-")) {
+		} else if (isBookStop) {
 			await db.delete(`${ownerId}.book`);
 			return interaction.message.delete();
+		} else if (isBookWatchlater || isBookFavorite) {
+			let option = customId.split("book")[1];
+			option = option.split("-")[0].toLowerCase();
+
+			await saveUserOptions(
+				interaction.user.id,
+				option,
+				book.id,
+				book.title
+			);
+
+			const { cmdMenu, tagMenu, bookBack, bookPage, bookNext } =
+				await getBookComponents(
+					tr,
+					ownerId,
+					await db.get(`${ownerId}.book`)
+				);
+
+			return interaction.message.edit({
+				components: [
+					new ActionRowBuilder().addComponents(
+						bookBack,
+						bookPage,
+						bookNext
+					),
+					new ActionRowBuilder().addComponents(cmdMenu),
+					new ActionRowBuilder().addComponents(tagMenu)
+				]
+			});
+		} else if (islistRemove) {
+			const ownerId = customId.split("-")[1];
+
+			if (ownerId != interaction.user.id)
+				return interaction.followUp({
+					embeds: [
+						new EmbedBuilder()
+							.setDescription(
+								`## ${tr("list_removeOtherFailed")}`
+							)
+							.setThumbnail(
+								"https://media.discordapp.net/attachments/1057244827688910850/1110552508369219584/discord_1.gif"
+							)
+							.setColor("#E06469")
+					],
+					ephemeral: true
+				});
+
+			const category = customId.split("-")[2];
+			const index = customId.split("-")[3];
+			const userdb = await db.get(`${ownerId}.${category}`);
+			const bookTitle = userdb[index].title;
+
+			userdb.splice(index, 1);
+			await db.set(`${ownerId}.${category}`, userdb);
+
+			interaction.followUp({
+				embeds: [
+					new EmbedBuilder()
+						.setDescription(
+							`## ${tr("list_removeSuccess", {
+								category: tr(category),
+								book: bookTitle
+							})}`
+						)
+						.setThumbnail(
+							"https://media.discordapp.net/attachments/1057244827688910850/1110552199450333204/discord.gif"
+						)
+						.setColor("#A4D0A4")
+				],
+				ephemeral: true
+			});
+		} else if (islistOpen) {
+			const ownerId = customId.split("-")[1];
+			const category = customId.split("-")[2];
+			const index = customId.split("-")[3];
+			const userdb = await db.get(`${ownerId}.${category}`);
+			const id = userdb[index].id;
+
+			const book = await nhentai.getDoujin(id);
+			interaction.followUp(await openBook(tr, interaction, book));
 		}
 	}
 });

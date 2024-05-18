@@ -8,6 +8,8 @@ const langs = {
 	characters: "Characters",
 	tags: "Tags",
 	languages: "Languages",
+	openMenu: "Quick View Menu",
+	removeMenu: "Remove Options",
 	cmdMenu: "Executable Options",
 	tagMenu: "Other Information",
 	notNsfw: "Please use this command in an NSFW channel",
@@ -20,10 +22,14 @@ const langs = {
 	watchlaterOn: "Added to Watch Later",
 	favoriteOff: "Add to Favorites",
 	favoriteOn: "Added to Favorites",
-	list_empty: "The list is empty!",
-	list_title: "<z> List",
 	favorite: "Favorites",
 	watchlater: "Watch Later",
+
+	list_empty: "The list is empty!",
+	list_title: "<name>'s <category> List",
+	list_removeOtherFailed:
+		"Cannot remove books from other's list! Please try removing from your own list!",
+	list_removeSuccess: "You have successfully removed <book> from <category>!",
 
 	nsfw_noper: "You need `Manage Channels` permission to use this command",
 	nsfw_unlock: "🔓 Now you can view books without being in an NSFW channel",
