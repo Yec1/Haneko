@@ -66,6 +66,7 @@ async function openBookShelf(tr, interaction, res, type, filter, name) {
 		currentBookTitle: res.data[index - 1].title,
 		currentIndex: index,
 		currentPage: currentPage,
+		totalCurrentData: res.data.length,
 		totalPages: totalPages
 	});
 

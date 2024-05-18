@@ -46,7 +46,6 @@ client.on(Events.InteractionCreate, async interaction => {
 			new Logger("指令").command(
 				`${interaction.user.displayName}(${interaction.user.id}) 執行 ${command.data.name} - ${time}`
 			);
-
 			webhook.send({
 				embeds: [
 					new EmbedBuilder()

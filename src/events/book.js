@@ -52,14 +52,20 @@ client.on("interactionCreate", async interaction => {
 				);
 			}
 
-			if (isShelfBack || isShelfNext) {
-				shelfIndex = isShelfBack
-					? shelfIndex - 1 < 1
-						? shelfIndex
-						: shelfIndex - 1
-					: shelfIndex + 1 > 29
-						? shelfPage + 1
-						: shelfIndex + 1;
+			if (isShelfBack) {
+				shelfIndex =
+					shelfIndex - 1 < 1
+						? shelfDB.totalCurrentData
+						: shelfIndex - 1;
+			}
+
+			if (isShelfNext) {
+				shelfIndex += 1;
+				if (shelfIndex > shelfDB.totalCurrentData) {
+					shelfPage += 1;
+					shelfIndex = 1;
+					if (shelfPage > shelfDB.totalPages) shelfPage = 1;
+				}
 			}
 
 			const filter = shelfDB.filter;
@@ -87,7 +93,12 @@ client.on("interactionCreate", async interaction => {
 							page: parseInt(shelfPage)
 						})
 					: await nhentai.explore(parseInt(shelfPage));
-
+			console.log(shelfIndex);
+			if (isShelfBackD || isShelfNextD)
+				await db.set(
+					`${interaction.user.id}.shelf.totalCurrentData`,
+					res.data.length
+				);
 			await db.set(
 				`${interaction.user.id}.shelf.currentBookId`,
 				res.data[shelfIndex - 1].id
@@ -169,6 +180,21 @@ client.on("interactionCreate", async interaction => {
 				const category = customId.split("-")[1];
 				const userId = customId.split("-")[2];
 				const userdb = await db.get(`${userId}.${category}`);
+
+				if (!userdb || userdb.length === 0) {
+					return interaction
+						.editReply({
+							embeds: [
+								new EmbedBuilder()
+									.setTitle(tr("list_empty"))
+									.setColor("#E06469")
+							],
+							components: [],
+							ephemeral: true
+						})
+						.catch(() => {});
+				}
+
 				const listDB = await db.get(`${userId}.list`);
 				let currentPage = listDB.currentPage;
 				const { totalPages } = getLists(userdb);
