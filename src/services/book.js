@@ -385,7 +385,16 @@ function getListComponents(tr, userId, totalPages, currentPage, category) {
 					totalPages[currentPage].map((book, i) => {
 						return {
 							emoji: "🎩",
-							label: `${book.bookDetails.id} - ${book.bookDetails.title}`,
+							label: `${
+								`${book.bookDetails.id} - ${book.bookDetails.title}`
+									.length > 100
+									? `${book.bookDetails.id} - ${book.bookDetails.title}`.substring(
+											0,
+											97
+										) + "..."
+									: `${book.bookDetails.id} - ${book.bookDetails.title}`
+							}`,
+
 							value: `listOpen-${userId}-${category}-${currentPage * 10 + i}`
 						};
 					})
@@ -401,7 +410,16 @@ function getListComponents(tr, userId, totalPages, currentPage, category) {
 					totalPages[currentPage].map((book, i) => {
 						return {
 							emoji: "❌",
-							label: `${book.bookDetails.id} - ${book.bookDetails.title}`,
+							label: `${
+								`${book.bookDetails.id} - ${book.bookDetails.title}`
+									.length > 100
+									? `${book.bookDetails.id} - ${book.bookDetails.title}`.substring(
+											0,
+											97
+										) + "..."
+									: `${book.bookDetails.id} - ${book.bookDetails.title}`
+							}`,
+
 							value: `listRemove-${userId}-${category}-${currentPage * 10 + i}`
 						};
 					})

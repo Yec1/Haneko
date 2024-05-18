@@ -46,6 +46,7 @@ client.on(Events.InteractionCreate, async interaction => {
 			new Logger("指令").command(
 				`${interaction.user.displayName}(${interaction.user.id}) 執行 ${command.data.name} - ${time}`
 			);
+
 			webhook.send({
 				embeds: [
 					new EmbedBuilder()
@@ -72,6 +73,10 @@ client.on(Events.InteractionCreate, async interaction => {
 							`${
 								interaction.options._subcommand
 									? `> ${interaction.options._subcommand}`
+									: "\u200b"
+							} ${
+								interaction.options._hoistedOptions > 0
+									? ` \`${interaction.options._hoistedOptions[0].value}\``
 									: "\u200b"
 							}`,
 							true
