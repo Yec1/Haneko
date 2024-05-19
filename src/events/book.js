@@ -254,7 +254,7 @@ client.on("interactionCreate", async interaction => {
 			}
 
 			const book = await db.get(`${ownerId}.book`);
-			let page = book.currentPage;
+			let page = book.currentPage ?? 0;
 			const isBookBack = customId.startsWith("bookBack-");
 			const isBookNext = customId.startsWith("bookNext-");
 
