@@ -6,7 +6,11 @@ import {
 } from "discord.js";
 import { NHentai } from "@shineiichijo/nhentai-ts";
 import { openBook, openBookShelf } from "../services/book.js";
-const nhentai = new NHentai();
+const nhentai = new NHentai({
+	site: "nhentai.net",
+	user_agent: process.env.USER_AGENT,
+	cookie_value: process.env.COOKIE
+});
 
 export default {
 	data: new SlashCommandBuilder()

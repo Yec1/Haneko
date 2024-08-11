@@ -246,6 +246,16 @@ async function getBookComponents(tr, id, book) {
 					? tr("favoriteOn") + "✔️"
 					: tr("favoriteOff"),
 				value: `bookFavorite-${id}`
+			},
+			{
+				emoji: "📥",
+				label: tr("downloadZip"),
+				value: `downloadZip-${book.id}`
+			},
+			{
+				emoji: "📥",
+				label: tr("downloadPdf"),
+				value: `downloadPdf-${book.id}`
 			}
 		);
 

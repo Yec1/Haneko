@@ -49,7 +49,14 @@ const langs = {
 	team_list: "Team members of <z>",
 
 	book_onlyself: "You can only operate your own books!",
-	book_close: "This book has been closed by <z>"
+	book_close: "This book has been closed by <z>",
+	downloadZip: "Download as zip",
+	downloadPdf: "Download as pdf",
+	downloding: "Downloading resources, please wait...",
+	downloaded: "Download complete! Took <time> seconds",
+	DownloadInQueue:
+		"Your download is in the queue, currently in position: <position>",
+	pleaseWait: "Please wait..."
 };
 
 export default langs;

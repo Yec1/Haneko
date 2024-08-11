@@ -12,7 +12,13 @@ import {
 import { EmbedBuilder, ActionRowBuilder } from "discord.js";
 import { i18nMixin, toI18nLang } from "../services/i18n.js";
 import { NHentai } from "@shineiichijo/nhentai-ts";
-const nhentai = new NHentai();
+import Queue from "queue";
+const downloadQueue = new Queue({ autostart: true });
+const nhentai = new NHentai({
+	site: "nhentai.net",
+	user_agent: process.env.USER_AGENT,
+	cookie_value: process.env.COOKIE
+});
 const db = client.db;
 
 client.on("interactionCreate", async interaction => {
@@ -93,7 +99,7 @@ client.on("interactionCreate", async interaction => {
 							page: parseInt(shelfPage)
 						})
 					: await nhentai.explore(parseInt(shelfPage));
-			console.log(shelfIndex);
+
 			if (isShelfBackD || isShelfNextD)
 				await db.set(
 					`${interaction.user.id}.shelf.totalCurrentData`,
@@ -199,13 +205,16 @@ client.on("interactionCreate", async interaction => {
 				let currentPage = listDB.currentPage;
 				const { totalPages } = getLists(userdb);
 
-				currentPage = isListBack
-					? (currentPage - 1 + totalPages.length) % totalPages.length
-					: (currentPage + 1) % totalPages.length;
+				if (isListRefresh) {
+					currentPage = isListBack
+						? (currentPage - 1 + totalPages.length) %
+							totalPages.length
+						: (currentPage + 1) % totalPages.length;
 
-				await db.set(`${interaction.user.id}.list`, {
-					currentPage: currentPage
-				});
+					await db.set(`${interaction.user.id}.list`, {
+						currentPage: currentPage
+					});
+				}
 
 				return interaction
 					.editReply({
@@ -290,8 +299,10 @@ client.on("interactionCreate", async interaction => {
 		}
 	} else if (interaction.isStringSelectMenu()) {
 		await interaction.deferUpdate().catch(() => {});
+
 		const customId = interaction.values[0];
 		if (customId.startsWith("tag")) return;
+		const isDownload = customId.startsWith("download");
 		const isBookOpen = customId.startsWith("bookOpen-");
 		const isBookStop = customId.startsWith("bookStop-");
 		const isBookWatchlater = customId.startsWith("bookWatchlater-");
@@ -403,6 +414,74 @@ client.on("interactionCreate", async interaction => {
 
 			const book = await nhentai.getDoujin(id);
 			interaction.followUp(await openBook(tr, interaction, book));
+		} else if (isDownload) {
+			const downloadTask = async () => {
+				try {
+					const action = customId.split("download")[1].split("-")[0]; // downloadZip-123456 -> Zip
+					const id = customId.split("download")[1].split("-")[1]; // downloadZip-123456 -> 123456
+
+					if (action === "Zip") {
+						interaction.followUp({
+							content: tr("downloding"),
+							ephemeral: true
+						});
+						const startTime = Date.now();
+						const res = await nhentai.getDoujin(id);
+						const zipBuffer = await res.images.zip();
+
+						interaction.followUp({
+							content:
+								`<@${interaction.user.id}> ` +
+								tr("downloded", {
+									time: (Date.now() - startTime) / 1000
+								}),
+							files: [
+								{
+									attachment: zipBuffer,
+									name: `${id}.zip`
+								}
+							],
+							ephemeral: true
+						});
+					} else if (action === "Pdf") {
+						interaction.followUp({
+							content: tr("downloding"),
+							ephemeral: true
+						});
+						const startTime = Date.now();
+						const res = await nhentai.getDoujin(id);
+						const pdfBuffer = await res.images.PDF();
+
+						interaction.followUp({
+							content:
+								`<@${interaction.user.id}> ` +
+								tr("downloded", {
+									time: (Date.now() - startTime) / 1000
+								}),
+							files: [
+								{
+									attachment: pdfBuffer,
+									name: `${id}.pdf`
+								}
+							],
+							ephemeral: true
+						});
+					}
+				} catch (error) {
+					console.log(error);
+				}
+			};
+
+			downloadQueue.push(downloadTask);
+
+			if (downloadQueue.length !== 1) {
+				interaction.followUp({
+					content: tr("DownloadInQueue", {
+						position: downloadQueue.length - 1
+					}),
+					ephemeral: true
+				});
+			}
 		}
 	}
 });

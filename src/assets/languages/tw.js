@@ -48,7 +48,13 @@ const langs = {
 	team_list: "<z> 的團隊成員",
 
 	book_onlyself: "你只能操作自己的本！",
-	book_close: "此書已由 <z> 關閉"
+	book_close: "此書已由 <z> 關閉",
+	downloadZip: "下載為壓縮檔",
+	downloadPdf: "下載為 PDF",
+	downloding: "正在下載資源，請稍等...",
+	downloded: "下載完成！花費了 <time> 秒",
+	DownloadInQueue: "您的下載正在排隊中，目前排隊位置：<position>",
+	pleaseWait: "請稍等..."
 };
 
 export default langs;
