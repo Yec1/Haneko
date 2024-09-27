@@ -54,7 +54,8 @@ const langs = {
 	downloding: "正在下載資源，請稍等...",
 	downloded: "下載完成！花費了 <time> 秒",
 	DownloadInQueue: "您的下載正在排隊中，目前排隊位置：<position>",
-	pleaseWait: "請稍等..."
+	pleaseWait: "請稍等...",
+	MissingPermission: "請幫我添加以下權限後，再次使用指令！"
 };
 
 export default langs;

@@ -56,7 +56,9 @@ const langs = {
 	downloaded: "Download complete! Took <time> seconds",
 	DownloadInQueue:
 		"Your download is in the queue, currently in position: <position>",
-	pleaseWait: "Please wait..."
+	pleaseWait: "Please wait...",
+	MissingPermission:
+		"Please add the following permissions before using the command again!"
 };
 
 export default langs;
