@@ -40,7 +40,7 @@ client.on("interactionCreate", async interaction => {
 			const isWatchlater = customId.startsWith("watchlater");
 			const isFavorite = customId.startsWith("favorite");
 
-			let shelfPage = shelfDB.currentPage;
+			let shelfPage = shelfDB.currentPage || 0;
 			let shelfIndex = shelfDB.currentIndex;
 
 			if (isShelfBackD || isShelfNextD) {
@@ -188,17 +188,15 @@ client.on("interactionCreate", async interaction => {
 				const userdb = await db.get(`${userId}.${category}`);
 
 				if (!userdb || userdb.length === 0) {
-					return interaction
-						.editReply({
-							embeds: [
-								new EmbedBuilder()
-									.setTitle(tr("list_empty"))
-									.setColor("#E06469")
-							],
-							components: [],
-							ephemeral: true
-						})
-						.catch(() => {});
+					return replyOrfollowUp(interaction, {
+						embeds: [
+							new EmbedBuilder()
+								.setTitle(tr("list_empty"))
+								.setColor("#E06469")
+						],
+						components: [],
+						ephemeral: true
+					}).catch(() => {});
 				}
 
 				const listDB = await db.get(`${userId}.list`);
@@ -249,7 +247,7 @@ client.on("interactionCreate", async interaction => {
 			}
 
 			if (!customId.endsWith(id)) {
-				return interaction.followUp({
+				return replyOrfollowUp(interaction, {
 					embeds: [
 						new EmbedBuilder()
 							.setThumbnail(
@@ -503,3 +501,9 @@ async function saveUserOptions(userid, option, id, title) {
 		});
 	}
 }
+
+global.replyOrfollowUp = async function (interaction, ...args) {
+	if (interaction.replied) return interaction.editReply(...args);
+	if (interaction.deferred) return await interaction.followUp(...args);
+	return await interaction.reply(...args);
+};

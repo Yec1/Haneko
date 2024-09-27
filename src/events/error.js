@@ -7,7 +7,7 @@ const webhook = new WebhookClient({
 });
 
 client.on("error", error => {
-	console.log(error)
+	console.log(error);
 	webhook.send({
 		embeds: [
 			new EmbedBuilder().setTimestamp().setDescription(`${error.message}`)
@@ -21,7 +21,7 @@ client.on("warn", error => {
 });
 
 process.on("unhandledRejection", error => {
-	console.log(error)
+	console.log(error);
 	webhook.send({
 		embeds: [
 			new EmbedBuilder().setTimestamp().setDescription(`${error.message}`)
