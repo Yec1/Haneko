@@ -58,7 +58,9 @@ const langs = {
 		"Your download is in the queue, currently in position: <position>",
 	pleaseWait: "Please wait...",
 	MissingPermission:
-		"Please add the following permissions before using the command again!"
+		"Please add the following permissions before using the command again!",
+	save_success: "Added <book> to <option>",
+	remove_success: "Removed <book> from <option>"
 };
 
 export default langs;

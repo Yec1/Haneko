@@ -31,7 +31,7 @@ export default {
 	async execute(client, interaction, args, tr, db) {
 		await db.delete(`${interaction.user.id}`);
 		interaction.reply({
-			embeds: [new EmbedBuilder.setTitle("Done!")]
+			embeds: [new EmbedBuilder().setTitle("Done!")]
 		});
 	}
 };
