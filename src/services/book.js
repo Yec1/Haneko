@@ -110,6 +110,27 @@ async function openBookShelf(tr, interaction, res, type, filter, name) {
 	};
 }
 
+function replaceMangaImage(url) {
+	const regex =
+		/https:\/\/i[1-5]?\.nhentai\.net\/galleries\/(\d+)\/(\d+)\.(jpg|png|webp)/;
+
+	const selectDomain = extension => {
+		switch (extension) {
+			case "jpg":
+				return "i2.nhentai.net";
+			default:
+				return "i4.nhentai.net";
+		}
+	};
+
+	const match = url.match(regex);
+	if (!match) return url;
+
+	const [_, galleryId, imageNumber, extension] = match;
+	const domain = selectDomain(extension);
+	return `https://${domain}/galleries/${galleryId}/${imageNumber}.${extension}`;
+}
+
 function getShelfBook(book) {
 	return new EmbedBuilder()
 		.setColor("#FDCEDF")
@@ -120,14 +141,16 @@ function getShelfBook(book) {
 }
 
 function getBookPage(book, page) {
+	if (book.type == "png") book.type = "webp";
+	const baseUrl = `https://i.nhentai.net/galleries/${book.media_id}/${page}.${book.type}`;
+	const imageUrl = replaceMangaImage(baseUrl);
+
 	return new EmbedBuilder()
 		.setColor("#FDCEDF")
 		.setTitle(book.title)
 		.setURL(book.url)
 		.setFooter({ text: `#${book.id}` })
-		.setImage(
-			`https://i.nhentai.net/galleries/${book.media_id}/${page}.${book.type}`
-		);
+		.setImage(imageUrl);
 }
 
 function getShelfComponents(tr, id, index, res) {
