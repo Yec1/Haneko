@@ -1,8 +1,11 @@
 import {
-	CommandInteraction,
+	ChatInputCommandInteraction,
 	SlashCommandBuilder,
-	EmbedBuilder
+	EmbedBuilder,
+	Client,
+	MessageFlags
 } from "discord.js";
+import { database } from "../index.js";
 
 export default {
 	data: new SlashCommandBuilder()
@@ -74,17 +77,22 @@ export default {
 	/**
 	 *
 	 * @param {Client} client
-	 * @param {CommandInteraction} interaction
+	 * @param {ChatInputCommandInteraction} interaction
 	 * @param {String[]} args
 	 */
-	async execute(client, interaction, args, tr, db) {
+	async execute(
+		client: Client,
+		interaction: ChatInputCommandInteraction,
+		args: string[],
+		tr: (key: string, params?: Record<string, string>) => string
+	): Promise<void> {
 		const teamPath = `${interaction.user.id}.team`;
 		const cmd = interaction.options.getSubcommand();
 		if (cmd == "add") {
-			const user = interaction.options.getUser("user").id;
+			const user = interaction.options.getUser("user")?.id;
 
 			if (user == interaction.user.id)
-				return interaction.reply({
+				await interaction.reply({
 					embeds: [
 						new EmbedBuilder()
 							.setTitle(tr("team_addself"))
@@ -93,52 +101,51 @@ export default {
 							)
 							.setColor("#E06469")
 					],
-					ephemeral: true
+					flags: MessageFlags.Ephemeral
 				});
-
-			if (await db.has(teamPath)) {
-				const team = await db.get(teamPath);
-				if (team.includes(user))
-					return interaction.reply({
+			else {
+				if (await database.has(teamPath)) {
+					const team = await database.get(teamPath);
+					if (team.includes(user))
+						await interaction.reply({
+							embeds: [
+								new EmbedBuilder()
+									.setThumbnail(
+										"https://media.discordapp.net/attachments/1057244827688910850/1110552508369219584/discord_1.gif"
+									)
+									.setTitle(tr("team_addfail"))
+									.setDescription(
+										tr("team_addesc", {
+											user: `<@${user}>`
+										})
+									)
+									.setColor("#E06469")
+							],
+							flags: MessageFlags.Ephemeral
+						});
+				} else {
+					await database.push(teamPath, user);
+					await interaction.reply({
 						embeds: [
 							new EmbedBuilder()
 								.setThumbnail(
-									"https://media.discordapp.net/attachments/1057244827688910850/1110552508369219584/discord_1.gif"
+									"https://media.discordapp.net/attachments/1057244827688910850/1110552199450333204/discord.gif"
 								)
-								.setTitle(tr("team_addfail"))
+								.setTitle(tr("team_addsus"))
 								.setDescription(
-									tr("team_addesc", {
-										z: `<@${user}>`
-									})
+									tr("team_addesc2", { user: `<@${user}>` })
 								)
-								.setColor("#E06469")
+								.setColor("#A4D0A4")
 						],
-						ephemeral: true
+						flags: MessageFlags.Ephemeral
 					});
+				}
 			}
-
-			await db.push(teamPath, user);
-			interaction.reply({
-				embeds: [
-					new EmbedBuilder()
-						.setThumbnail(
-							"https://media.discordapp.net/attachments/1057244827688910850/1110552199450333204/discord.gif"
-						)
-						.setTitle(tr("team_addsus"))
-						.setDescription(
-							tr("team_addesc2", {
-								z: `<@${user}>`
-							})
-						)
-						.setColor("#A4D0A4")
-				],
-				ephemeral: true
-			});
 		} else if (cmd == "remove") {
-			const user = interaction.options.getUser("user").id;
+			const user = interaction.options.getUser("user")?.id;
 
 			if (user == interaction.user.id)
-				return interaction.reply({
+				await interaction.reply({
 					embeds: [
 						new EmbedBuilder()
 							.setTitle(tr("team_removefail"))
@@ -148,76 +155,76 @@ export default {
 							)
 							.setColor("#E06469")
 					],
-					ephemeral: true
+					flags: MessageFlags.Ephemeral
 				});
-
-			if (await db.has(teamPath)) {
-				const team = await db.get(teamPath);
-				if (!team.includes(user))
-					return interaction.reply({
+			else {
+				if (await database.has(teamPath)) {
+					const team = await database.get(teamPath);
+					if (!team.includes(user))
+						await interaction.reply({
+							embeds: [
+								new EmbedBuilder()
+									.setThumbnail(
+										"https://media.discordapp.net/attachments/1057244827688910850/1110552508369219584/discord_1.gif"
+									)
+									.setTitle(tr("team_removefail"))
+									.setDescription(
+										tr("team_removedesc", {
+											user: `<@${user}>`
+										})
+									)
+									.setColor("#E06469")
+							],
+							flags: MessageFlags.Ephemeral
+						});
+				} else {
+					await database.pull(teamPath, user);
+					await interaction.reply({
 						embeds: [
 							new EmbedBuilder()
 								.setThumbnail(
-									"https://media.discordapp.net/attachments/1057244827688910850/1110552508369219584/discord_1.gif"
+									"https://media.discordapp.net/attachments/1057244827688910850/1110552199450333204/discord.gif"
 								)
-								.setTitle(tr("team_removefail"))
+								.setTitle(tr("team_removesus"))
 								.setDescription(
-									tr("team_removedesc", {
-										z: `<@${user}>`
+									tr("team_removedesc2", {
+										user: `<@${user}>`
 									})
 								)
-								.setColor("#E06469")
+								.setColor("#A4D0A4")
 						],
-						ephemeral: true
+						flags: MessageFlags.Ephemeral
 					});
+				}
 			}
-
-			await db.pull(teamPath, user);
-			interaction.reply({
-				embeds: [
-					new EmbedBuilder()
-						.setThumbnail(
-							"https://media.discordapp.net/attachments/1057244827688910850/1110552199450333204/discord.gif"
-						)
-						.setTitle(tr("team_removesus"))
-						.setDescription(
-							tr("team_removedesc2", {
-								z: `<@${user}>`
-							})
-						)
-						.setColor("#A4D0A4")
-				],
-				ephemeral: true
-			});
 		} else if (cmd == "list") {
 			let description = tr("none");
-			if (await db.has(teamPath)) {
-				const team = await db.get(teamPath);
+			if (await database.has(teamPath)) {
+				const team = await database.get(teamPath);
 				if (team.length != 0)
 					description = team
-						.map((id, i) => {
+						.map((id: string, i: number) => {
 							return `\`${i + 1}\` ▪ <@${id}>`;
 						})
 						.join("\n");
 			}
-			interaction.reply({
+			await interaction.reply({
 				embeds: [
 					new EmbedBuilder()
 						.setThumbnail(
 							interaction.user.displayAvatarURL({
-								size: 4096,
-								dynamic: true
+								size: 4096
 							})
 						)
 						.setTitle(
 							tr("team_list", {
-								z: interaction.user.username
+								username: interaction.user.username
 							})
 						)
 						.setDescription(description)
 						.setColor("#FDCEDF")
 				],
-				ephemeral: true
+				flags: MessageFlags.Ephemeral
 			});
 		}
 	}

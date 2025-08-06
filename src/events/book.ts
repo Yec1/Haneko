@@ -1,4 +1,4 @@
-import { client } from "../index.js";
+import { client, database, nhentai } from "../index.js";
 import {
 	getBookPage,
 	getBookComponents,
@@ -9,35 +9,38 @@ import {
 	getListEmbed,
 	getListComponents
 } from "../services/book.js";
-import { EmbedBuilder, ActionRowBuilder } from "discord.js";
-import { i18nMixin, toI18nLang } from "../services/i18n.js";
-import { NHentai } from "@shineiichijo/nhentai-ts";
+import {
+	EmbedBuilder,
+	ActionRowBuilder,
+	ButtonBuilder,
+	StringSelectMenuBuilder,
+	Interaction,
+	ButtonInteraction,
+	StringSelectMenuInteraction,
+	MessageFlags
+} from "discord.js";
+import { createTranslator } from "../services/i18n.js";
 import Queue from "queue";
 const downloadQueue = new Queue({ autostart: true });
-const nhentai = new NHentai({
-	site: "nhentai.net",
-	user_agent: process.env.USER_AGENT,
-	cookie_value: process.env.COOKIE
-});
-const db = client.db;
 
-client.on("interactionCreate", async interaction => {
-	const tr = i18nMixin(toI18nLang(interaction.locale) || "en");
+client.on("interactionCreate", async (interaction: Interaction) => {
+	const tr = createTranslator(interaction.locale || "en");
 	if (interaction.isButton()) {
-		await interaction.deferUpdate().catch(() => {});
+		await (interaction as ButtonInteraction).deferUpdate().catch(() => {});
 		const { customId } = interaction;
 
-		console.log(customId);
 		if (
 			customId.startsWith("shelf") ||
 			customId.startsWith("watchlater") ||
 			customId.startsWith("favorite")
 		) {
-			const ownerId = customId.match(/-(\d+)$/)[1];
+			const ownerId = customId.match(/-(\d+)$/)?.[1];
+			if (!ownerId) return;
+
 			let shelfDB =
 				ownerId == interaction.user.id
-					? await db.get(`${interaction.user.id}.shelf`)
-					: await db.get(`${ownerId}.shelf`);
+					? await database.get(`${interaction.user.id}.shelf`)
+					: await database.get(`${ownerId}.shelf`);
 
 			const isShelfBackD = customId.startsWith("shelfBackD-");
 			const isShelfNextD = customId.startsWith("shelfNextD-");
@@ -58,7 +61,7 @@ client.on("interactionCreate", async interaction => {
 						? 1
 						: shelfPage + 1;
 				shelfIndex = 1;
-				await db.set(
+				await database.set(
 					`${interaction.user.id}.shelf.currentPage`,
 					shelfPage
 				);
@@ -81,7 +84,7 @@ client.on("interactionCreate", async interaction => {
 			}
 
 			const filter = shelfDB.filter;
-			let searchFunction;
+			let searchFunction: any;
 			switch (filter) {
 				case "tag":
 					searchFunction = nhentai.searchWithTag;
@@ -107,26 +110,26 @@ client.on("interactionCreate", async interaction => {
 					: await nhentai.explore(parseInt(shelfPage));
 
 			if (isShelfBackD || isShelfNextD)
-				await db.set(
+				await database.set(
 					`${interaction.user.id}.shelf.totalCurrentData`,
 					res.data.length
 				);
-			await db.set(
+			await database.set(
 				`${interaction.user.id}.shelf.currentBookId`,
 				res.data[shelfIndex - 1].id
 			);
-			await db.set(
+			await database.set(
 				`${interaction.user.id}.shelf.currentBookTitle`,
 				res.data[shelfIndex - 1].title
 			);
 
 			if (isWatchlater || isFavorite) {
-				const userdb = (await db.get(interaction.user.id)) || {};
+				const userdb = (await database.get(interaction.user.id)) || {};
 				const option = isWatchlater ? "watchlater" : "favorite";
 
 				await interaction.followUp({
-					content: userdb[option].some(
-						item => item.id === res.data[shelfIndex - 1].id
+					content: userdb[option]?.some(
+						(item: any) => item.id === res.data[shelfIndex - 1].id
 					)
 						? tr("remove_success", {
 								book: res.data[shelfIndex - 1].title,
@@ -136,7 +139,7 @@ client.on("interactionCreate", async interaction => {
 								book: res.data[shelfIndex - 1].title,
 								option: tr(option)
 							}),
-					ephemeral: true
+					flags: MessageFlags.Ephemeral
 				});
 
 				await saveUserOptions(
@@ -145,10 +148,11 @@ client.on("interactionCreate", async interaction => {
 					res.data[shelfIndex - 1].id,
 					res.data[shelfIndex - 1].title
 				);
-			} else await db.set(`${ownerId}.shelf.currentIndex`, shelfIndex);
+			} else
+				await database.set(`${ownerId}.shelf.currentIndex`, shelfIndex);
 
 			if (customId.startsWith("shelfCheck"))
-				return interaction.message.edit(
+				return interaction.message?.edit(
 					await openBook(
 						tr,
 						interaction,
@@ -169,26 +173,28 @@ client.on("interactionCreate", async interaction => {
 				favoriteOn
 			} = getShelfComponents(tr, interaction.user.id, shelfIndex, res);
 
-			const userdb = (await db.get(interaction.user.id)) || {};
-			return interaction.message.edit({
+			const userdb = (await database.get(interaction.user.id)) || {};
+			return interaction.message?.edit({
 				embeds: [getShelfBook(res.data[shelfIndex - 1])],
 				components: [
-					new ActionRowBuilder().addComponents(
+					new ActionRowBuilder<ButtonBuilder>().addComponents(
 						backD,
 						back,
 						page,
 						next,
 						nextD
 					),
-					new ActionRowBuilder().addComponents(
+					new ActionRowBuilder<ButtonBuilder>().addComponents(
 						check,
 						userdb?.watchlater?.some(
-							item => item.id === res.data[shelfIndex - 1].id
+							(item: any) =>
+								item.id === res.data[shelfIndex - 1].id
 						)
 							? watchlaterOn
 							: watchlaterOff,
 						userdb?.favorite?.some(
-							item => item.id === res.data[shelfIndex - 1].id
+							(item: any) =>
+								item.id === res.data[shelfIndex - 1].id
 						)
 							? favoriteOn
 							: favoriteOff
@@ -203,7 +209,7 @@ client.on("interactionCreate", async interaction => {
 			if (isListBack || isListNext || isListRefresh) {
 				const category = customId.split("-")[1];
 				const userId = customId.split("-")[2];
-				const userdb = await db.get(`${userId}.${category}`);
+				const userdb = await database.get(`${userId}.${category}`);
 
 				if (!userdb || userdb.length === 0) {
 					return interaction
@@ -213,13 +219,12 @@ client.on("interactionCreate", async interaction => {
 									.setTitle(tr("list_empty"))
 									.setColor("#E06469")
 							],
-							components: [],
-							ephemeral: true
+							components: []
 						})
 						.catch(() => {});
 				}
 
-				const listDB = await db.get(`${userId}.list`);
+				const listDB = await database.get(`${userId}.list`);
 				let currentPage = listDB.currentPage;
 				const { totalPages } = getLists(userdb);
 
@@ -229,7 +234,7 @@ client.on("interactionCreate", async interaction => {
 							totalPages.length
 						: (currentPage + 1) % totalPages.length;
 
-					await db.set(`${interaction.user.id}.list`, {
+					await database.set(`${interaction.user.id}.list`, {
 						currentPage: currentPage
 					});
 				}
@@ -240,7 +245,7 @@ client.on("interactionCreate", async interaction => {
 							getListEmbed(
 								tr,
 								interaction,
-								category,
+								category!,
 								totalPages,
 								currentPage
 							)
@@ -250,19 +255,21 @@ client.on("interactionCreate", async interaction => {
 							interaction.user.id,
 							totalPages,
 							currentPage,
-							category
-						)
+							category!
+						) as any
 					})
 					.catch(() => {});
 			}
 		} else {
-			const ownerId = customId.match(/-(\d+)$/)[1];
+			const ownerId = customId.match(/-(\d+)$/)?.[1];
+			if (!ownerId) return;
+
 			const userId = interaction.user.id;
 			const teamPath = `${ownerId}.team`;
 
 			let id = userId;
-			if (await db.has(teamPath)) {
-				const team = await client.db.get(teamPath);
+			if (await database.has(teamPath)) {
+				const team = await database.get(teamPath);
 				if (team.length > 0) id = userId === ownerId ? userId : ownerId;
 			}
 
@@ -276,11 +283,11 @@ client.on("interactionCreate", async interaction => {
 							.setTitle(tr("book_onlyself"))
 							.setColor("#E06469")
 					],
-					ephemeral: true
+					flags: MessageFlags.Ephemeral
 				});
 			}
 
-			const book = await db.get(`${ownerId}.book`);
+			const book = await database.get(`${ownerId}.book`);
 			let page = book.currentPage ?? 0;
 			const isBookBack = customId.startsWith("bookBack-");
 			const isBookNext = customId.startsWith("bookNext-");
@@ -293,33 +300,38 @@ client.on("interactionCreate", async interaction => {
 					: page + 1 > book.totalPages
 						? 1
 						: page + 1;
-				await db.set(`${ownerId}.book.currentPage`, page);
+				await database.set(`${ownerId}.book.currentPage`, page);
 			}
-			const { cmdMenu, tagMenu, bookBack, bookPage, bookNext } =
-				await getBookComponents(
-					tr,
-					ownerId,
-					await db.get(`${ownerId}.book`)
-				);
+			const bookData = await database.get(`${ownerId}.book`);
+			if (!bookData) return;
 
-			return interaction.message.edit({
+			const { cmdMenu, tagMenu, bookBack, bookPage, bookNext } =
+				await getBookComponents(tr, ownerId, bookData);
+
+			return interaction.message?.edit({
 				embeds: [getBookPage(book, page)],
 				components: [
-					new ActionRowBuilder().addComponents(
+					new ActionRowBuilder<ButtonBuilder>().addComponents(
 						bookBack,
 						bookPage,
 						bookNext
 					),
-					new ActionRowBuilder().addComponents(cmdMenu),
-					new ActionRowBuilder().addComponents(tagMenu)
+					new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+						cmdMenu
+					),
+					new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+						tagMenu
+					)
 				]
 			});
 		}
 	} else if (interaction.isStringSelectMenu()) {
-		await interaction.deferUpdate().catch(() => {});
+		await (interaction as StringSelectMenuInteraction)
+			.deferUpdate()
+			.catch(() => {});
 
 		const customId = interaction.values[0];
-		if (customId.startsWith("tag")) return;
+		if (!customId || customId.startsWith("tag")) return;
 		const isDownload = customId.startsWith("download");
 		const isBookOpen = customId.startsWith("bookOpen-");
 		const isBookStop = customId.startsWith("bookStop-");
@@ -327,38 +339,44 @@ client.on("interactionCreate", async interaction => {
 		const isBookFavorite = customId.startsWith("bookFavorite-");
 		const islistRemove = customId.startsWith("listRemove-");
 		const islistOpen = customId.startsWith("listOpen-");
-		const ownerId = customId.match(/-(\d+)$/)[1];
-		const book = await db.get(`${ownerId}.book`);
+		const ownerId = customId.match(/-(\d+)$/)?.[1];
+		if (!ownerId) return;
+
+		const book = await database.get(`${ownerId}.book`);
 
 		if (isBookOpen) {
 			const { cmdMenu, tagMenu, bookBack, bookPage, bookNext } =
 				await getBookComponents(
 					tr,
 					ownerId,
-					await db.get(`${ownerId}.book`)
+					(await database.get(`${ownerId}.book`)) || book
 				);
-			return interaction.message.edit({
-				embeds: [getBookPage(book, page)],
+			return interaction.message?.edit({
+				embeds: [getBookPage(book, book.currentPage || 1)],
 				components: [
-					new ActionRowBuilder().addComponents(
+					new ActionRowBuilder<ButtonBuilder>().addComponents(
 						bookBack,
 						bookPage,
 						bookNext
 					),
-					new ActionRowBuilder().addComponents(cmdMenu),
-					new ActionRowBuilder().addComponents(tagMenu)
+					new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+						cmdMenu
+					),
+					new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+						tagMenu
+					)
 				]
 			});
 		} else if (isBookStop) {
-			await db.delete(`${ownerId}.book`);
-			return interaction.message.delete();
+			await database.delete(`${ownerId}.book`);
+			return interaction.message?.delete();
 		} else if (isBookWatchlater || isBookFavorite) {
 			let option = customId.split("book")[1];
-			option = option.split("-")[0].toLowerCase();
+			if (option) option = option.split("-")[0]?.toLowerCase();
 
 			await saveUserOptions(
 				interaction.user.id,
-				option,
+				option!,
 				book.id,
 				book.title
 			);
@@ -367,18 +385,22 @@ client.on("interactionCreate", async interaction => {
 				await getBookComponents(
 					tr,
 					ownerId,
-					await db.get(`${ownerId}.book`)
+					(await database.get(`${ownerId}.book`)) || book
 				);
 
-			return interaction.message.edit({
+			return interaction.message?.edit({
 				components: [
-					new ActionRowBuilder().addComponents(
+					new ActionRowBuilder<ButtonBuilder>().addComponents(
 						bookBack,
 						bookPage,
 						bookNext
 					),
-					new ActionRowBuilder().addComponents(cmdMenu),
-					new ActionRowBuilder().addComponents(tagMenu)
+					new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+						cmdMenu
+					),
+					new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+						tagMenu
+					)
 				]
 			});
 		} else if (islistRemove) {
@@ -396,94 +418,108 @@ client.on("interactionCreate", async interaction => {
 							)
 							.setColor("#E06469")
 					],
-					ephemeral: true
+					flags: MessageFlags.Ephemeral
 				});
 
 			const category = customId.split("-")[2];
 			const index = customId.split("-")[3];
-			const userdb = await db.get(`${ownerId}.${category}`);
-			const bookTitle = userdb[index].title;
+			if (category && index) {
+				const userdb = await database.get(`${ownerId}.${category}`);
+				const bookTitle = userdb[parseInt(index)]?.title;
 
-			userdb.splice(index, 1);
-			await db.set(`${ownerId}.${category}`, userdb);
+				userdb.splice(parseInt(index), 1);
+				await database.set(`${ownerId}.${category}`, userdb);
 
-			interaction.followUp({
-				embeds: [
-					new EmbedBuilder()
-						.setDescription(
-							`## ${tr("list_removeSuccess", {
-								category: tr(category),
-								book: bookTitle
-							})}`
-						)
-						.setThumbnail(
-							"https://media.discordapp.net/attachments/1057244827688910850/1110552199450333204/discord.gif"
-						)
-						.setColor("#A4D0A4")
-				],
-				ephemeral: true
-			});
+				interaction.followUp({
+					embeds: [
+						new EmbedBuilder()
+							.setDescription(
+								`## ${tr("list_removeSuccess", {
+									category: tr(category),
+									book: bookTitle
+								})}`
+							)
+							.setThumbnail(
+								"https://media.discordapp.net/attachments/1057244827688910850/1110552199450333204/discord.gif"
+							)
+							.setColor("#A4D0A4")
+					],
+					flags: MessageFlags.Ephemeral
+				});
+			}
 		} else if (islistOpen) {
 			const ownerId = customId.split("-")[1];
 			const category = customId.split("-")[2];
 			const index = customId.split("-")[3];
-			const userdb = await db.get(`${ownerId}.${category}`);
-			const id = userdb[index].id;
+			if (ownerId && category && index) {
+				const userdb = await database.get(`${ownerId}.${category}`);
+				const id = userdb[parseInt(index)]?.id;
 
-			const book = await nhentai.getDoujin(id);
-			interaction.followUp(await openBook(tr, interaction, book));
+				if (id) {
+					const book = await nhentai.getDoujin(id);
+					interaction.followUp(await openBook(tr, interaction, book));
+				}
+			}
 		} else if (isDownload) {
 			const downloadTask = async () => {
 				try {
-					const action = customId.split("download")[1].split("-")[0]; // downloadZip-123456 -> Zip
-					const id = customId.split("download")[1].split("-")[1]; // downloadZip-123456 -> 123456
+					const action = customId.split("download")[1]?.split("-")[0]; // downloadZip-123456 -> Zip
+					const id = customId.split("download")[1]?.split("-")[1]; // downloadZip-123456 -> 123456
 
-					if (action === "Zip") {
-						interaction.followUp({
-							content: tr("downloding"),
-							ephemeral: true
-						});
-						const startTime = Date.now();
-						const res = await nhentai.getDoujin(id);
-						const zipBuffer = await res.images.zip();
+					if (action && id) {
+						if (action === "Zip") {
+							interaction.followUp({
+								content: tr("downloding"),
+								flags: MessageFlags.Ephemeral
+							});
+							const startTime = Date.now();
+							const res = await nhentai.getDoujin(id);
+							const zipBuffer = await res.images.zip();
 
-						interaction.followUp({
-							content:
-								`<@${interaction.user.id}> ` +
-								tr("downloded", {
-									time: (Date.now() - startTime) / 1000
-								}),
-							files: [
-								{
-									attachment: zipBuffer,
-									name: `${id}.zip`
-								}
-							],
-							ephemeral: true
-						});
-					} else if (action === "Pdf") {
-						interaction.followUp({
-							content: tr("downloding"),
-							ephemeral: true
-						});
-						const startTime = Date.now();
-						const res = await nhentai.getDoujin(id);
-						const pdfBuffer = await res.images.PDF();
+							interaction.followUp({
+								content:
+									`<@${interaction.user.id}> ` +
+									tr("downloded", {
+										time: (
+											(Date.now() - startTime) /
+											1000
+										).toString()
+									}),
+								files: [
+									{
+										attachment: zipBuffer,
+										name: `${id}.zip`
+									}
+								],
+								flags: MessageFlags.Ephemeral
+							});
+						} else if (action === "Pdf") {
+							interaction.followUp({
+								content: tr("downloding"),
+								flags: MessageFlags.Ephemeral
+							});
+							const startTime = Date.now();
+							const res = await nhentai.getDoujin(id);
+							const pdfBuffer = await res.images.PDF();
 
-						interaction.followUp({
-							content:
-								`<@${interaction.user.id}> ` +
-								tr("downloded", {
-									time: (Date.now() - startTime) / 1000
-								}),
-							files: [
-								{
-									attachment: pdfBuffer,
-									name: `${id}.pdf`
-								}
-							],
-							ephemeral: true
-						});
+							interaction.followUp({
+								content:
+									`<@${interaction.user.id}> ` +
+									tr("downloded", {
+										time: (
+											(Date.now() - startTime) /
+											1000
+										).toString()
+									}),
+								files: [
+									{
+										attachment: pdfBuffer,
+										name: `${id}.pdf`
+									}
+								],
+								flags: MessageFlags.Ephemeral
+							});
+						}
 					}
 				} catch (error) {
 					console.log(error);
@@ -495,26 +531,31 @@ client.on("interactionCreate", async interaction => {
 			if (downloadQueue.length !== 1) {
 				interaction.followUp({
 					content: tr("DownloadInQueue", {
-						position: downloadQueue.length - 1
+						position: (downloadQueue.length - 1).toString()
 					}),
-					ephemeral: true
+					flags: MessageFlags.Ephemeral
 				});
 			}
 		}
 	}
 });
 
-async function saveUserOptions(userid, option, id, title) {
-	const userdb = (await db.get(`${userid}`)) || {};
+async function saveUserOptions(
+	userid: string,
+	option: string,
+	id: string,
+	title: string
+): Promise<void> {
+	const userdb = (await database.get(`${userid}`)) || {};
 	if (!userdb[option]) userdb[option] = [];
 
-	const index = userdb[option].findIndex(item => item.id === id);
+	const index = userdb[option].findIndex((item: any) => item.id === id);
 
 	if (index !== -1) {
 		userdb[option].splice(index, 1);
-		await db.set(`${userid}.${option}`, userdb[option]);
+		await database.set(`${userid}.${option}`, userdb[option]);
 	} else {
-		await db.push(`${userid}.${option}`, {
+		await database.push(`${userid}.${option}`, {
 			id: id,
 			title: title,
 			addTime: Math.floor(new Date().getTime() / 1000)

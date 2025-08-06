@@ -1,16 +1,13 @@
 import {
-	CommandInteraction,
+	ChatInputCommandInteraction,
 	SlashCommandBuilder,
 	EmbedBuilder,
-	ChannelType
+	ChannelType,
+	Client,
+	MessageFlags
 } from "discord.js";
-import { NHentai } from "@shineiichijo/nhentai-ts";
 import { openBook, openBookShelf } from "../services/book.js";
-const nhentai = new NHentai({
-	site: "nhentai.net",
-	user_agent: process.env.USER_AGENT,
-	cookie_value: process.env.COOKIE
-});
+import { database, nhentai } from "../index.js";
 
 export default {
 	data: new SlashCommandBuilder()
@@ -102,19 +99,25 @@ export default {
 	/**
 	 *
 	 * @param {Client} client
-	 * @param {CommandInteraction} interaction
+	 * @param {ChatInputCommandInteraction} interaction
 	 * @param {String[]} args
 	 */
-	async execute(client, interaction, args, tr, db) {
+	async execute(
+		client: Client,
+		interaction: ChatInputCommandInteraction,
+		args: string[],
+		tr: (key: string) => string
+	): Promise<void> {
 		const cmd = interaction.options.getSubcommand();
 		if (
-			interaction.channel.type == ChannelType.PrivateThread ||
-			interaction.channel.type == ChannelType.PublicThread
-				? interaction.channel.parent.nsfw == false
-				: interaction.channel.nsfw == false &&
-					(await db.get(`${interaction.guild.id}.nonNSFW`)) != true
-		)
-			return interaction.reply({
+			interaction.channel?.type == ChannelType.PrivateThread ||
+			interaction.channel?.type == ChannelType.PublicThread
+				? (interaction.channel.parent as any)?.nsfw == false
+				: (interaction.channel as any)?.nsfw == false &&
+					(await database.get(`${interaction.guild?.id}.nonNSFW`)) !=
+						true
+		) {
+			await interaction.reply({
 				embeds: [
 					new EmbedBuilder()
 						.setThumbnail(
@@ -123,11 +126,13 @@ export default {
 						.setTitle(tr("notNsfw"))
 						.setColor("#E06469")
 				],
-				ephemeral: true
+				flags: MessageFlags.Ephemeral
 			});
+			return;
+		}
 
 		await interaction.deferReply();
-		interaction.editReply({
+		await interaction.editReply({
 			embeds: [
 				new EmbedBuilder()
 					.setThumbnail(
@@ -139,16 +144,18 @@ export default {
 		});
 
 		if (cmd === "random") {
-			interaction.editReply(
+			await interaction.editReply(
 				await openBook(tr, interaction, await nhentai.getRandom())
 			);
 		} else if (cmd == "get") {
 			const id = interaction.options.getString("query");
 			try {
-				const book = await nhentai.getDoujin(id);
-				interaction.editReply(await openBook(tr, interaction, book));
-			} catch (error) {
-				return interaction.editReply({
+				const book = await nhentai.getDoujin(id!);
+				await interaction.editReply(
+					await openBook(tr, interaction, book)
+				);
+			} catch (error: any) {
+				await interaction.editReply({
 					embeds: [
 						new EmbedBuilder()
 							.setThumbnail(
@@ -159,15 +166,15 @@ export default {
 							.setColor("#E06469")
 					]
 				});
+				return;
 			}
 		} else if (cmd === "search") {
 			const filter = interaction.options.getString("filter") || null;
-			const query = interaction.options
-				.getString("query")
-				.replace(" ", "-");
+			const query =
+				interaction.options.getString("query")?.replace(" ", "-") || "";
 			let res;
 			try {
-				let searchFunction;
+				let searchFunction: any;
 				switch (filter) {
 					case "tag":
 						searchFunction = nhentai.searchWithTag;
@@ -186,8 +193,8 @@ export default {
 				}
 
 				res = await searchFunction(query);
-			} catch (error) {
-				return interaction.editReply({
+			} catch (error: any) {
+				await interaction.editReply({
 					embeds: [
 						new EmbedBuilder()
 							.setThumbnail(
@@ -198,12 +205,20 @@ export default {
 							.setColor("#E06469")
 					]
 				});
+				return;
 			}
-			interaction.editReply(
-				await openBookShelf(tr, interaction, res, cmd, filter, query)
+			await interaction.editReply(
+				await openBookShelf(
+					tr,
+					interaction,
+					res,
+					cmd,
+					filter || undefined,
+					query
+				)
 			);
 		} else if (cmd == "explore") {
-			interaction.editReply(
+			await interaction.editReply(
 				await openBookShelf(
 					tr,
 					interaction,

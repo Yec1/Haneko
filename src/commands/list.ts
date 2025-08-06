@@ -1,9 +1,12 @@
 import {
-	CommandInteraction,
+	ChatInputCommandInteraction,
 	SlashCommandBuilder,
-	EmbedBuilder
+	EmbedBuilder,
+	Client,
+	MessageFlags
 } from "discord.js";
 import { getLists, getListEmbed, getListComponents } from "../services/book.js";
+import { database } from "../index.js";
 
 export default {
 	data: new SlashCommandBuilder()
@@ -50,44 +53,56 @@ export default {
 	/**
 	 *
 	 * @param {Client} client
-	 * @param {CommandInteraction} interaction
+	 * @param {ChatInputCommandInteraction} interaction
 	 * @param {String[]} args
 	 */
-	async execute(client, interaction, args, tr, db) {
+	async execute(
+		client: Client,
+		interaction: ChatInputCommandInteraction,
+		args: string[],
+		tr: (key: string) => string
+	): Promise<void> {
 		const category = interaction.options.getString("category");
 		const visible = interaction.options.getBoolean("visible") ?? false;
-		let userdb = await db.get(`${interaction.user.id}.${category}`);
+		let userdb = await database.get(`${interaction.user.id}.${category}`);
 
 		if (!userdb || userdb.length === 0) {
-			return interaction.reply({
+			await interaction.reply({
 				embeds: [
 					new EmbedBuilder()
 						.setTitle(tr("list_empty"))
 						.setColor("#E06469")
 				],
-				ephemeral: true
+				flags: MessageFlags.Ephemeral
 			});
+			return;
 		}
 
 		const currentPage = 0;
 		const { totalPages } = getLists(userdb);
-		await db.set(`${interaction.user.id}.list`, {
+		await database.set(`${interaction.user.id}.list`, {
 			currentPage: currentPage
 		});
 
-		interaction.reply({
+		await interaction.reply({
 			embeds: [
-				getListEmbed(tr, interaction, category, totalPages, currentPage)
+				getListEmbed(
+					tr,
+					interaction,
+					category!,
+					totalPages,
+					currentPage
+				)
 			],
 			components: getListComponents(
 				tr,
 				interaction.user.id,
 				totalPages,
 				currentPage,
-				category
-			),
+				category!
+			) as any,
 
-			ephemeral: !visible
+			flags: !visible ? MessageFlags.Ephemeral : undefined
 		});
 	}
 };

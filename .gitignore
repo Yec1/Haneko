@@ -18,3 +18,18 @@ yarn-error.log
 env.development
 env.production
 *.tmp
+
+# TypeScript
+dist/
+*.tsbuildinfo
+*.d.ts.map
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

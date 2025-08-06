@@ -1,13 +1,15 @@
-import { client } from "../index.js";
-import { Events, WebhookClient, EmbedBuilder } from "discord.js";
+import { client, cluster } from "../index.js";
+import { Events, WebhookClient, EmbedBuilder, Guild } from "discord.js";
 import moment from "moment";
-const webhook = new WebhookClient({ url: process.env.JLWEBHOOK });
 
-client.on(Events.GuildCreate, async guild => {
-	const results = await client.cluster.broadcastEval(
-		c => c.guilds.cache.size
+const webhook = new WebhookClient({ url: process.env.JLWEBHOOK! });
+
+client.on(Events.GuildCreate, async (guild: Guild) => {
+	const results = await cluster.broadcastEval(
+		(c: any) => c.guilds.cache.size
 	);
-	const totalGuilds = results.reduce((prev, val) => prev + val, 0);
+	const totalGuilds =
+		results?.reduce((prev: number, val: number) => prev + val, 0) || 0;
 
 	webhook.send({
 		embeds: [
@@ -41,7 +43,7 @@ client.on(Events.GuildCreate, async guild => {
 					inline: false
 				})
 				.addFields({
-					name: `${client.user.username} 的伺服器數量`,
+					name: `${client.user?.username} 的伺服器數量`,
 					value: `\`${totalGuilds}\` 個伺服器`,
 					inline: false
 				})

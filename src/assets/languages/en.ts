@@ -1,4 +1,65 @@
-const langs = {
+interface LanguageStrings {
+	check: string;
+	none: string;
+	unknown: string;
+	artists: string;
+	original: string;
+	groups: string;
+	characters: string;
+	tags: string;
+	languages: string;
+	openMenu: string;
+	removeMenu: string;
+	cmdMenu: string;
+	tagMenu: string;
+	notNsfw: string;
+	Searching: string;
+	NofoundBook: string;
+	NofoundRes: string;
+	book_stop: string;
+	shelfpage: string;
+	watchlaterOff: string;
+	watchlaterOn: string;
+	favoriteOff: string;
+	favoriteOn: string;
+	favorite: string;
+	watchlater: string;
+	list_empty: string;
+	list_title: string;
+	list_removeOtherFailed: string;
+	list_removeSuccess: string;
+	nsfw_noper: string;
+	nsfw_unlock: string;
+	nsfw_lock: string;
+	team_addself: string;
+	team_addfail: string;
+	team_addsus: string;
+	team_addesc: string;
+	team_addesc2: string;
+	team_removefail: string;
+	team_removeself: string;
+	team_removedesc: string;
+	team_removesus: string;
+	team_removedesc2: string;
+	team_list: string;
+	book_onlyself: string;
+	book_close: string;
+	downloadZip: string;
+	downloadPdf: string;
+	downloding: string;
+	downloaded: string;
+	downloded: string;
+	DownloadInQueue: string;
+	downloadRetry: string;
+	downloadFailed: string;
+	fileTooLarge: string;
+	pleaseWait: string;
+	MissingPermission: string;
+	save_success: string;
+	remove_success: string;
+}
+
+const langs: LanguageStrings = {
 	check: "Select",
 	none: "`None`",
 	unknown: "Unknown",
@@ -16,7 +77,7 @@ const langs = {
 	Searching: "Searching...",
 	NofoundBook: "Cannot find this book",
 	NofoundRes: "No search results, please try filtering!",
-	book_close: "Close this book",
+	book_stop: "Close this book",
 	shelfpage: "<index>/<length> Books - <current>/<total> Pages",
 	watchlaterOff: "Add to Watch Later",
 	watchlaterOn: "Added to Watch Later",
@@ -54,8 +115,14 @@ const langs = {
 	downloadPdf: "Download as pdf",
 	downloding: "Downloading resources, please wait...",
 	downloaded: "Download complete! Took <time> seconds",
+	downloded: "Download complete! Took <time> seconds",
 	DownloadInQueue:
 		"Your download is in the queue, currently in position: <position>",
+	downloadRetry: "⚠️ Download failed, retrying (<retry>/<max>)...",
+	downloadFailed:
+		"❌ Download failed after <max> retries. Possible reasons:\n• Network connection issues\n• Server temporarily unavailable\n• File doesn't exist or has been deleted\n\nPlease try again later.",
+	fileTooLarge:
+		"❌ File too large (<size>MB), exceeds Discord's 25MB limit. Please try other download methods.",
 	pleaseWait: "Please wait...",
 	MissingPermission:
 		"Please add the following permissions before using the command again!",

@@ -1,4 +1,4 @@
-import { client } from "../index.js";
+import { database } from "../index.js";
 import {
 	EmbedBuilder,
 	ActionRowBuilder,
@@ -7,9 +7,8 @@ import {
 	StringSelectMenuBuilder
 } from "discord.js";
 import moment from "moment";
-const db = client.db;
 
-async function openBook(tr, interaction, book) {
+async function openBook(tr: any, interaction: any, book: any) {
 	const parts = book.images.pages[0].split("/");
 	const page = 1;
 	const totalPages = book.images.pages.length;
@@ -29,7 +28,7 @@ async function openBook(tr, interaction, book) {
 		url: `https://nhentai.net/g/${book.id}`,
 		currentPage: page
 	};
-	await db.set(`${interaction.user.id}.book`, bookDB);
+	await database.set(`${interaction.user.id}.book`, bookDB);
 
 	const { cmdMenu, tagMenu, bookBack, bookPage, bookNext } =
 		await getBookComponents(tr, interaction.user.id, bookDB);
@@ -37,14 +36,27 @@ async function openBook(tr, interaction, book) {
 	return {
 		embeds: [getBookPage(bookDB, page)],
 		components: [
-			new ActionRowBuilder().addComponents(bookBack, bookPage, bookNext),
-			new ActionRowBuilder().addComponents(cmdMenu),
-			new ActionRowBuilder().addComponents(tagMenu)
+			new ActionRowBuilder<ButtonBuilder>()
+				.addComponents(bookBack, bookPage, bookNext)
+				.toJSON(),
+			new ActionRowBuilder<StringSelectMenuBuilder>()
+				.addComponents(cmdMenu)
+				.toJSON(),
+			new ActionRowBuilder<StringSelectMenuBuilder>()
+				.addComponents(tagMenu)
+				.toJSON()
 		]
 	};
 }
 
-async function openBookShelf(tr, interaction, res, type, filter, name) {
+async function openBookShelf(
+	tr: any,
+	interaction: any,
+	res: any,
+	type?: string,
+	filter?: string,
+	name?: string
+) {
 	const index = 1;
 	const pagination = res?.pagination;
 	let totalPages = 1,
@@ -58,8 +70,8 @@ async function openBookShelf(tr, interaction, res, type, filter, name) {
 		currentPage = pagination.currentPage;
 	}
 
-	const userdb = (await db.get(interaction.user.id)) || {};
-	await db.set(`${interaction.user.id}.shelf`, {
+	const userdb = (await database.get(interaction.user.id)) || {};
+	await database.set(`${interaction.user.id}.shelf`, {
 		name: type == "search" ? name : null,
 		filter: filter,
 		currentBookId: res.data[index - 1].id,
@@ -86,38 +98,36 @@ async function openBookShelf(tr, interaction, res, type, filter, name) {
 	return {
 		embeds: [getShelfBook(res.data[index - 1])],
 		components: [
-			new ActionRowBuilder().addComponents(
-				backD,
-				back,
-				page,
-				next,
-				nextD
-			),
-			new ActionRowBuilder().addComponents(
-				check,
-				userdb?.watchlater?.some(
-					item => item.id === res.data[index - 1].id
+			new ActionRowBuilder<ButtonBuilder>()
+				.addComponents(backD, back, page, next, nextD)
+				.toJSON(),
+			new ActionRowBuilder<ButtonBuilder>()
+				.addComponents(
+					check,
+					userdb?.watchlater?.some(
+						(item: any) => item.id === res.data[index - 1].id
+					)
+						? watchlaterOn
+						: watchlaterOff,
+					userdb?.favorite?.some(
+						(item: any) => item.id === res.data[index - 1].id
+					)
+						? favoriteOn
+						: favoriteOff
 				)
-					? watchlaterOn
-					: watchlaterOff,
-				userdb?.favorite?.some(
-					item => item.id === res.data[index - 1].id
-				)
-					? favoriteOn
-					: favoriteOff
-			)
+				.toJSON()
 		]
 	};
 }
 
-function replaceMangaImage(url) {
+function replaceMangaImage(url: string) {
 	const regex =
 		/https:\/\/i[1-5]?\.nhentai\.net\/galleries\/(\d+)\/(\d+)\.(jpg|png|webp)/;
 
-	const selectDomain = extension => {
+	const selectDomain = (extension: string) => {
 		switch (extension) {
 			case "jpg":
-				return "i2.nhentai.net";
+				return "i1.nhentai.net";
 			default:
 				return "i4.nhentai.net";
 		}
@@ -126,12 +136,12 @@ function replaceMangaImage(url) {
 	const match = url.match(regex);
 	if (!match) return url;
 
-	const [_, galleryId, imageNumber, extension] = match;
-	const domain = selectDomain(extension);
+	const [_, galleryId, imageNumber, extension] = match as string[];
+	const domain = selectDomain(extension || "jpg");
 	return `https://${domain}/galleries/${galleryId}/${imageNumber}.${extension}`;
 }
 
-function getShelfBook(book) {
+function getShelfBook(book: any) {
 	return new EmbedBuilder()
 		.setColor("#FDCEDF")
 		.setTitle(book.title)
@@ -140,8 +150,8 @@ function getShelfBook(book) {
 		.setImage(book.cover);
 }
 
-function getBookPage(book, page) {
-	if (book.type == "png") book.type = "webp";
+function getBookPage(book: any, page: number) {
+	if (book.type == "webp") book.type = "jpg";
 	const baseUrl = `https://i.nhentai.net/galleries/${book.media_id}/${page}.${book.type}`;
 	const imageUrl = replaceMangaImage(baseUrl);
 
@@ -153,7 +163,7 @@ function getBookPage(book, page) {
 		.setImage(imageUrl);
 }
 
-function getShelfComponents(tr, id, index, res) {
+function getShelfComponents(tr: any, id: string, index: number, res: any) {
 	const pagination = res?.pagination;
 	let totalPages = 1,
 		currentPage = 1;
@@ -243,8 +253,8 @@ function getShelfComponents(tr, id, index, res) {
 	};
 }
 
-async function getBookComponents(tr, id, book) {
-	const userdb = await db.get(id);
+async function getBookComponents(tr: any, id: string, book: any) {
+	const userdb = await database.get(id);
 	const cmdMenu = new StringSelectMenuBuilder()
 		.setPlaceholder(tr("cmdMenu"))
 		.setCustomId("book_selectMenu")
@@ -258,14 +268,18 @@ async function getBookComponents(tr, id, book) {
 			},
 			{
 				emoji: "🕓",
-				label: userdb?.watchlater?.some(item => item.id === book.id)
+				label: userdb?.watchlater?.some(
+					(item: any) => item.id === book.id
+				)
 					? tr("watchlaterOn") + "✔️"
 					: tr("watchlaterOff"),
 				value: `bookWatchlater-${id}`
 			},
 			{
 				emoji: "❤️",
-				label: userdb?.favorite?.some(item => item.id === book.id)
+				label: userdb?.favorite?.some(
+					(item: any) => item.id === book.id
+				)
 					? tr("favoriteOn") + "✔️"
 					: tr("favoriteOff"),
 				value: `bookFavorite-${id}`
@@ -363,7 +377,7 @@ async function getBookComponents(tr, id, book) {
 	return { cmdMenu, tagMenu, bookBack, bookPage, bookNext };
 }
 
-function getLists(userdb) {
+function getLists(userdb: any) {
 	const chunkSize = 10;
 	const listFullMap = Object.keys(userdb).map((bookIndex, i) => {
 		const book = userdb[bookIndex];
@@ -382,7 +396,13 @@ function getLists(userdb) {
 	return { totalPages };
 }
 
-function getListEmbed(tr, interaction, category, totalPages, currentPage) {
+function getListEmbed(
+	tr: any,
+	interaction: any,
+	category: string,
+	totalPages: any[],
+	currentPage: number
+) {
 	const embed = new EmbedBuilder()
 		.setTitle(
 			tr("list_title", {
@@ -397,7 +417,9 @@ function getListEmbed(tr, interaction, category, totalPages, currentPage) {
 			})
 		)
 		.setDescription(
-			totalPages[currentPage].map(book => book.bookDescription).join("\n")
+			totalPages[currentPage]
+				.map((book: any) => book.bookDescription)
+				.join("\n")
 		)
 		.setFooter({
 			text: `${currentPage + 1}/${totalPages.length}\t ▪\t${moment(new Date()).format("YYYY-MM-DD HH:mm:ss")}`
@@ -407,7 +429,13 @@ function getListEmbed(tr, interaction, category, totalPages, currentPage) {
 	return embed;
 }
 
-function getListComponents(tr, userId, totalPages, currentPage, category) {
+function getListComponents(
+	tr: any,
+	userId: string,
+	totalPages: any[],
+	currentPage: number,
+	category: string
+) {
 	return [
 		new ActionRowBuilder().addComponents(
 			new StringSelectMenuBuilder()
@@ -416,7 +444,7 @@ function getListComponents(tr, userId, totalPages, currentPage, category) {
 				.setMinValues(1)
 				.setMaxValues(1)
 				.addOptions(
-					totalPages[currentPage].map((book, i) => {
+					totalPages[currentPage].map((book: any, i: number) => {
 						return {
 							emoji: "🎩",
 							label: `${
@@ -441,7 +469,7 @@ function getListComponents(tr, userId, totalPages, currentPage, category) {
 				.setMinValues(1)
 				.setMaxValues(1)
 				.addOptions(
-					totalPages[currentPage].map((book, i) => {
+					totalPages[currentPage].map((book: any, i: number) => {
 						return {
 							emoji: "❌",
 							label: `${

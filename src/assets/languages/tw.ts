@@ -1,4 +1,65 @@
-const langs = {
+interface LanguageStrings {
+	check: string;
+	none: string;
+	unknown: string;
+	artists: string;
+	original: string;
+	groups: string;
+	characters: string;
+	tags: string;
+	languages: string;
+	openMenu: string;
+	removeMenu: string;
+	cmdMenu: string;
+	tagMenu: string;
+	notNsfw: string;
+	Searching: string;
+	NofoundBook: string;
+	NofoundRes: string;
+	book_stop: string;
+	shelfpage: string;
+	watchlaterOff: string;
+	watchlaterOn: string;
+	favoriteOff: string;
+	favoriteOn: string;
+	favorite: string;
+	watchlater: string;
+	list_empty: string;
+	list_title: string;
+	list_removeOtherFailed: string;
+	list_removeSuccess: string;
+	nsfw_noper: string;
+	nsfw_unlock: string;
+	nsfw_lock: string;
+	team_addself: string;
+	team_addfail: string;
+	team_addsus: string;
+	team_addesc: string;
+	team_addesc2: string;
+	team_removefail: string;
+	team_removeself: string;
+	team_removedesc: string;
+	team_removesus: string;
+	team_removedesc2: string;
+	team_list: string;
+	book_onlyself: string;
+	book_close: string;
+	downloadZip: string;
+	downloadPdf: string;
+	downloding: string;
+	downloaded: string;
+	downloded: string;
+	DownloadInQueue: string;
+	downloadRetry: string;
+	downloadFailed: string;
+	fileTooLarge: string;
+	pleaseWait: string;
+	MissingPermission: string;
+	save_success: string;
+	remove_success: string;
+}
+
+const langs: LanguageStrings = {
 	check: "選擇",
 	none: "`無`",
 	unknown: "未知",
@@ -52,8 +113,14 @@ const langs = {
 	downloadZip: "下載為壓縮檔",
 	downloadPdf: "下載為 PDF",
 	downloding: "正在下載資源，請稍等...",
+	downloaded: "下載完成！花費了 <time> 秒",
 	downloded: "下載完成！花費了 <time> 秒",
 	DownloadInQueue: "您的下載正在排隊中，目前排隊位置：<position>",
+	downloadRetry: "⚠️ 下載失敗，正在重試 (<retry>/<max>)...",
+	downloadFailed:
+		"❌ 下載失敗，已重試 <max> 次。可能原因：\n• 網絡連接問題\n• 服務器暫時不可用\n• 文件不存在或已被刪除\n\n請稍後重試。",
+	fileTooLarge:
+		"❌ 文件太大 (<size>MB)，超過 Discord 25MB 限制。請嘗試其他下載方式。",
 	pleaseWait: "請稍等...",
 	MissingPermission: "請幫我添加以下權限後，再次使用指令！",
 	save_success: "已將 <book> 添加至 <option>",
