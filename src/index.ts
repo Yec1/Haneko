@@ -13,7 +13,7 @@ import {
 } from "discord.js";
 import { ClusterClient, getInfo } from "discord-hybrid-sharding";
 import { QuickDB } from "quick.db";
-import { NHentai } from "@shineiichijo/nhentai-ts";
+import { NHentai } from "@yeci226/nhentai-ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

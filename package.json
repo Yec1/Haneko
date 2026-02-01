@@ -20,7 +20,7 @@
 		"nHentai"
 	],
 	"dependencies": {
-		"@shineiichijo/nhentai-ts": "yeci226/nhentai-ts",
+		"@yeci226/nhentai-ts": "yeci226/nhentai-ts",
 		"better-sqlite3": "^12.2.0",
 		"discord-hybrid-sharding": "^2.2.6",
 		"discord.js": "^14.21.0",
