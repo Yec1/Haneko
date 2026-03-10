@@ -42,7 +42,7 @@
 		"@typescript-eslint/eslint-plugin": "^8.39.0",
 		"@typescript-eslint/parser": "^8.39.0",
 		"cross-env": "^10.0.0",
-		"eslint": "^9.32.0",
+		"eslint": "^9.23.1",
 		"jest": "^30.0.5",
 		"prettier": "^3.6.2"
 	}
