@@ -258,7 +258,7 @@ export class RateLimiter {
 			return {
 				allowed: false,
 				retryAfter: Math.ceil(
-					(this.globalRequests[0] + this.globalWindowMs - now) / 1000
+					(this.globalRequests[0]! + this.globalWindowMs - now) / 1000
 				)
 			};
 		}
@@ -276,7 +276,7 @@ export class RateLimiter {
 			return {
 				allowed: false,
 				retryAfter: Math.ceil(
-					(requests[0] + this.userWindowMs - now) / 1000
+					(requests[0]! + this.userWindowMs - now) / 1000
 				)
 			};
 		}
