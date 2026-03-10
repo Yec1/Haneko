@@ -12,6 +12,11 @@ import {
 } from "discord.js";
 import { createTranslator } from "../services/i18n.js";
 import { Logger } from "../services/logger.js";
+import {
+	getCommandAckPlan,
+	ensureDeferredReply,
+	replyOrFollowUp
+} from "@bot/shared";
 
 const webhook = new WebhookClient({ url: process.env.CMDWEBHOOK! });
 
@@ -77,7 +82,7 @@ client.on(
 		if (interaction.isChatInputCommand()) {
 			const command = commands.slash.get(interaction.commandName);
 			if (!command) {
-				await interaction.followUp({
+				await replyOrFollowUp(interaction, {
 					content: "An error has occured",
 					flags: MessageFlags.Ephemeral
 				});
@@ -96,6 +101,13 @@ client.on(
 			}
 
 			try {
+				const ackPlan = getCommandAckPlan(command, {
+					defaultEphemeral: true
+				});
+				if (ackPlan.shouldDefer) {
+					await ensureDeferredReply(interaction, ackPlan.ephemeral);
+				}
+
 				await (command.execute as any)(client, interaction, args, i18n);
 
 				const time = `花費 ${(
@@ -150,7 +162,7 @@ client.on(
 			} catch (e: any) {
 				new Logger("指令").error(`錯誤訊息：${e.message}`);
 				if (interaction.isRepliable()) {
-					await interaction.followUp({
+					await replyOrFollowUp(interaction, {
 						content: "哦喲，好像出了一點小問題，請重試",
 						flags: MessageFlags.Ephemeral
 					});
@@ -164,7 +176,7 @@ client.on(
 			} catch (e: any) {
 				new Logger("指令").error(`錯誤訊息：${e.message}`);
 				if (interaction.isRepliable()) {
-					await interaction.reply({
+					await replyOrFollowUp(interaction, {
 						content: "哦喲，好像出了一點小問題，請重試",
 						flags: MessageFlags.Ephemeral
 					});
