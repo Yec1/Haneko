@@ -6,8 +6,21 @@ declare module "@yeci226/nhentai-ts" {
 		[key: string]: unknown;
 	}
 
+	export interface NHentaiBook {
+		id?: number | string;
+		[key: string]: any;
+	}
+
+	export interface NHentaiExploreResult {
+		data: NHentaiBook[];
+		[key: string]: any;
+	}
+
 	export class NHentai {
 		constructor(options?: NHentaiOptions);
-		[key: string]: unknown;
+		getRandom(): Promise<NHentaiBook>;
+		getDoujin(id: number | string): Promise<NHentaiBook>;
+		explore(page?: number): Promise<NHentaiExploreResult>;
+		[key: string]: any;
 	}
 }
