@@ -16,7 +16,7 @@ import {
 	getCommandAckPlan,
 	ensureDeferredReply,
 	replyOrFollowUp
-} from "@bot/shared";
+} from "../utils/sharedCompat";
 
 const webhook = new WebhookClient({ url: process.env.CMDWEBHOOK! });
 

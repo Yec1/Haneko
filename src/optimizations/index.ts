@@ -5,7 +5,7 @@ import {
 	CommandExecutor,
 	MessageCache,
 	EnhancedErrorHandler
-} from "@bot/shared";
+} from "../utils/sharedCompat";
 export class OptimizationManager {
 	commandUsageTracker?: CommandUsageTracker;
 	rateLimiter?: RateLimiter;

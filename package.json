@@ -5,7 +5,7 @@
 	"main": "dist/cluster.js",
 	"scripts": {
 		"dev": "npm run build && cross-env NODE_ENV=dev node dist/cluster.js",
-		"start": "npm run build && node dist/cluster.js",
+		"start": "node dist/cluster.js",
 		"build": "rimraf dist && tsc",
 		"build:watch": "tsc --watch",
 		"lint": "eslint src/**/* --ext .ts",
