@@ -183,12 +183,14 @@ const STATS_API = process.env.STATS_API_URL;
 const STATS_API_TOKEN = process.env.STATS_API_TOKEN;
 
 if (!STATS_API) {
-	new Logger("Stats").warn("STATS_API_URL is not set, stats push is disabled");
+	new Logger("Stats").warn(
+		"STATS_API_URL is not set, stats push is disabled"
+	);
 } else {
 	setInterval(async () => {
 		try {
 			const headers: Record<string, string> = {
-				"Content-Type": "application/json",
+				"Content-Type": "application/json"
 			};
 			if (STATS_API_TOKEN) {
 				headers.Authorization = `Bearer ${STATS_API_TOKEN}`;
@@ -205,14 +207,18 @@ if (!STATS_API) {
 						totalCommands24h: 0,
 						totalErrors24h: 0,
 						topCommands: [],
-						byCommand: [],
-					},
-				}),
-			}).catch((err) => {
-				new Logger("Stats").error(`Failed to push stats: ${err.message}`);
+						byCommand: []
+					}
+				})
+			}).catch(err => {
+				new Logger("Stats").error(
+					`Failed to push stats: ${err.message}`
+				);
 			});
 		} catch (error) {
-			new Logger("Stats").error(`Error pushing stats: ${(error as Error).message}`);
+			new Logger("Stats").error(
+				`Error pushing stats: ${(error as Error).message}`
+			);
 		}
 	}, 60_000); // 每 60 秒推送一次
 }
