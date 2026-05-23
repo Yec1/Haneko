@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 
-dotenv.config({ override: true });
+dotenv.config();
 
 import {
 	Client,
@@ -46,7 +46,7 @@ const client = new Client({
 });
 
 const nhentai = new NHentai({
-	site: "nhentai.net",
+	site: "nhentai.website",
 	...(process.env.USER_AGENT && { user_agent: process.env.USER_AGENT }),
 	...(process.env.COOKIE && { cookie_value: process.env.COOKIE })
 });
