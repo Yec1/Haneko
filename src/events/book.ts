@@ -23,6 +23,14 @@ import { createTranslator } from "../services/i18n.js";
 import Queue from "queue";
 const downloadQueue = new Queue({ autostart: true });
 
+// Parse customId with format: {prefix}-{ownerId}-{scopeId}
+// ownerId and scopeId are both numeric Snowflakes
+function parseOwnerAndScope(customId: string): { ownerId: string; scopeId: string } | null {
+	const match = customId.match(/-(\d+)-(\d+)$/);
+	if (!match) return null;
+	return { ownerId: match[1]!, scopeId: match[2]! };
+}
+
 client.on("interactionCreate", async (interaction: Interaction) => {
 	const tr = createTranslator(interaction.locale || "en");
 	if (interaction.isButton()) {
@@ -34,13 +42,16 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 			customId.startsWith("watchlater") ||
 			customId.startsWith("favorite")
 		) {
-			const ownerId = customId.match(/-(\d+)$/)?.[1];
-			if (!ownerId) return;
+			const parsed = parseOwnerAndScope(customId);
+			if (!parsed) return;
+			const { ownerId, scopeId } = parsed;
 
 			let shelfDB =
 				ownerId == interaction.user.id
-					? await database.get(`${interaction.user.id}.shelf`)
-					: await database.get(`${ownerId}.shelf`);
+					? await database.get(`${interaction.user.id}.shelf.${scopeId}`)
+					: await database.get(`${ownerId}.shelf.${scopeId}`);
+
+			if (!shelfDB) return;
 
 			const isShelfBackD = customId.startsWith("shelfBackD-");
 			const isShelfNextD = customId.startsWith("shelfNextD-");
@@ -62,7 +73,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 						: shelfPage + 1;
 				shelfIndex = 1;
 				await database.set(
-					`${interaction.user.id}.shelf.currentPage`,
+					`${interaction.user.id}.shelf.${scopeId}.currentPage`,
 					shelfPage
 				);
 			}
@@ -108,18 +119,20 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 							page: parseInt(shelfPage)
 						})
 					: await nhentai.explore(parseInt(shelfPage));
+			if (!res?.data || res.data.length === 0)
+				return interaction.message?.edit({ content: "找不到任何結果，請稍後再試" });
 
 			if (isShelfBackD || isShelfNextD)
 				await database.set(
-					`${interaction.user.id}.shelf.totalCurrentData`,
+					`${interaction.user.id}.shelf.${scopeId}.totalCurrentData`,
 					res.data.length
 				);
 			await database.set(
-				`${interaction.user.id}.shelf.currentBookId`,
+				`${interaction.user.id}.shelf.${scopeId}.currentBookId`,
 				res.data[shelfIndex - 1].id
 			);
 			await database.set(
-				`${interaction.user.id}.shelf.currentBookTitle`,
+				`${interaction.user.id}.shelf.${scopeId}.currentBookTitle`,
 				res.data[shelfIndex - 1].title
 			);
 
@@ -149,7 +162,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 					res.data[shelfIndex - 1].title
 				);
 			} else
-				await database.set(`${ownerId}.shelf.currentIndex`, shelfIndex);
+				await database.set(`${ownerId}.shelf.${scopeId}.currentIndex`, shelfIndex);
 
 			if (customId.startsWith("shelfCheck"))
 				return interaction.message?.edit(
@@ -171,7 +184,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 				watchlaterOn,
 				favoriteOff,
 				favoriteOn
-			} = getShelfComponents(tr, interaction.user.id, shelfIndex, res);
+			} = getShelfComponents(tr, interaction.user.id, scopeId, shelfIndex, res);
 
 			const userdb = (await database.get(interaction.user.id)) || {};
 			return interaction.message?.edit({
@@ -261,8 +274,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 					.catch(() => {});
 			}
 		} else {
-			const ownerId = customId.match(/-(\d+)$/)?.[1];
-			if (!ownerId) return;
+			const parsed = parseOwnerAndScope(customId);
+			if (!parsed) return;
+			const { ownerId, scopeId } = parsed;
 
 			const userId = interaction.user.id;
 			const teamPath = `${ownerId}.team`;
@@ -273,7 +287,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 				if (team.length > 0) id = userId === ownerId ? userId : ownerId;
 			}
 
-			if (!customId.endsWith(id)) {
+			if (!customId.includes(`-${id}-`)) {
 				return await interaction.followUp({
 					embeds: [
 						new EmbedBuilder()
@@ -287,7 +301,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 				});
 			}
 
-			const book = await database.get(`${ownerId}.book`);
+			const book = await database.get(`${ownerId}.book.${scopeId}`);
+			if (!book) return;
 			let page = book.currentPage ?? 0;
 			const isBookBack = customId.startsWith("bookBack-");
 			const isBookNext = customId.startsWith("bookNext-");
@@ -300,13 +315,13 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 					: page + 1 > book.totalPages
 						? 1
 						: page + 1;
-				await database.set(`${ownerId}.book.currentPage`, page);
+				await database.set(`${ownerId}.book.${scopeId}.currentPage`, page);
 			}
-			const bookData = await database.get(`${ownerId}.book`);
+			const bookData = await database.get(`${ownerId}.book.${scopeId}`);
 			if (!bookData) return;
 
 			const { cmdMenu, tagMenu, bookBack, bookPage, bookNext } =
-				await getBookComponents(tr, ownerId, bookData);
+				await getBookComponents(tr, ownerId, scopeId, bookData);
 
 			return interaction.message?.edit({
 				embeds: [getBookPage(book, page)],
@@ -339,17 +354,23 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 		const isBookFavorite = customId.startsWith("bookFavorite-");
 		const islistRemove = customId.startsWith("listRemove-");
 		const islistOpen = customId.startsWith("listOpen-");
-		const ownerId = customId.match(/-(\d+)$/)?.[1];
-		if (!ownerId) return;
 
-		const book = await database.get(`${ownerId}.book`);
+		const parsed = parseOwnerAndScope(customId);
+		const ownerId = parsed?.ownerId;
+		const scopeId = parsed?.scopeId;
+
+		if (!isDownload && !islistRemove && !islistOpen && (!ownerId || !scopeId)) return;
+
+		const book = ownerId && scopeId ? await database.get(`${ownerId}.book.${scopeId}`) : null;
 
 		if (isBookOpen) {
+			if (!ownerId || !scopeId) return;
 			const { cmdMenu, tagMenu, bookBack, bookPage, bookNext } =
 				await getBookComponents(
 					tr,
 					ownerId,
-					(await database.get(`${ownerId}.book`)) || book
+					scopeId,
+					(await database.get(`${ownerId}.book.${scopeId}`)) || book
 				);
 			return interaction.message?.edit({
 				embeds: [getBookPage(book, book.currentPage || 1)],
@@ -368,9 +389,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 				]
 			});
 		} else if (isBookStop) {
-			await database.delete(`${ownerId}.book`);
+			if (!ownerId || !scopeId) return;
+			await database.delete(`${ownerId}.book.${scopeId}`);
 			return interaction.message?.delete();
 		} else if (isBookWatchlater || isBookFavorite) {
+			if (!ownerId || !scopeId || !book) return;
 			let option = customId.split("book")[1];
 			if (option) option = option.split("-")[0]?.toLowerCase();
 
@@ -385,7 +408,8 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 				await getBookComponents(
 					tr,
 					ownerId,
-					(await database.get(`${ownerId}.book`)) || book
+					scopeId,
+					(await database.get(`${ownerId}.book.${scopeId}`)) || book
 				);
 
 			return interaction.message?.edit({
@@ -404,9 +428,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 				]
 			});
 		} else if (islistRemove) {
-			const ownerId = customId.split("-")[1];
+			const parts = customId.split("-");
+			const listOwnerId = parts[1];
 
-			if (ownerId != interaction.user.id)
+			if (listOwnerId != interaction.user.id)
 				return interaction.followUp({
 					embeds: [
 						new EmbedBuilder()
@@ -421,14 +446,14 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 					flags: MessageFlags.Ephemeral
 				});
 
-			const category = customId.split("-")[2];
-			const index = customId.split("-")[3];
+			const category = parts[2];
+			const index = parts[3];
 			if (category && index) {
-				const userdb = await database.get(`${ownerId}.${category}`);
+				const userdb = await database.get(`${listOwnerId}.${category}`);
 				const bookTitle = userdb[parseInt(index)]?.title;
 
 				userdb.splice(parseInt(index), 1);
-				await database.set(`${ownerId}.${category}`, userdb);
+				await database.set(`${listOwnerId}.${category}`, userdb);
 
 				interaction.followUp({
 					embeds: [
@@ -448,16 +473,17 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 				});
 			}
 		} else if (islistOpen) {
-			const ownerId = customId.split("-")[1];
-			const category = customId.split("-")[2];
-			const index = customId.split("-")[3];
-			if (ownerId && category && index) {
-				const userdb = await database.get(`${ownerId}.${category}`);
+			const parts = customId.split("-");
+			const listOwnerId = parts[1];
+			const category = parts[2];
+			const index = parts[3];
+			if (listOwnerId && category && index) {
+				const userdb = await database.get(`${listOwnerId}.${category}`);
 				const id = userdb[parseInt(index)]?.id;
 
 				if (id) {
-					const book = await nhentai.getDoujin(id);
-					interaction.followUp(await openBook(tr, interaction, book));
+					const bookData = await nhentai.getDoujin(id);
+					interaction.followUp(await openBook(tr, interaction, bookData));
 				}
 			}
 		} else if (isDownload) {

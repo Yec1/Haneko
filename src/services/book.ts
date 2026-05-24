@@ -9,9 +9,13 @@ import {
 import moment from "moment";
 
 async function openBook(tr: any, interaction: any, book: any) {
+	if (!book?.images) return { content: "找不到本子資料，請稍後再試", ephemeral: true };
 	const parts = book.images.pages[0].split("/");
 	const page = 1;
 	const totalPages = book.images.pages.length;
+	const scopeId = interaction.id;
+	const userId = interaction.user.id;
+
 	const bookDB = {
 		id: book.id,
 		title: book.title ?? book.originalTitle,
@@ -26,12 +30,13 @@ async function openBook(tr: any, interaction: any, book: any) {
 		totalPages: totalPages,
 		type: parts[parts.length - 1].split(".")[1],
 		url: `https://nhentai.net/g/${book.id}`,
-		currentPage: page
+		currentPage: page,
+		scopeId
 	};
-	await database.set(`${interaction.user.id}.book`, bookDB);
+	await database.set(`${userId}.book.${scopeId}`, bookDB);
 
 	const { cmdMenu, tagMenu, bookBack, bookPage, bookNext } =
-		await getBookComponents(tr, interaction.user.id, bookDB);
+		await getBookComponents(tr, userId, scopeId, bookDB);
 
 	return {
 		embeds: [getBookPage(bookDB, page)],
@@ -70,8 +75,14 @@ async function openBookShelf(
 		currentPage = pagination.currentPage;
 	}
 
-	const userdb = (await database.get(interaction.user.id)) || {};
-	await database.set(`${interaction.user.id}.shelf`, {
+	const scopeId = interaction.id;
+	const userId = interaction.user.id;
+	const userdb = (await database.get(userId)) || {};
+	if (!res?.data || res.data.length === 0) {
+		return { content: "找不到任何結果，請稍後再試", ephemeral: true };
+	}
+
+	await database.set(`${userId}.shelf.${scopeId}`, {
 		name: type == "search" ? name : null,
 		filter: filter,
 		currentBookId: res.data[index - 1].id,
@@ -79,7 +90,8 @@ async function openBookShelf(
 		currentIndex: index,
 		currentPage: currentPage,
 		totalCurrentData: res.data.length,
-		totalPages: totalPages
+		totalPages: totalPages,
+		scopeId
 	});
 
 	const {
@@ -93,7 +105,7 @@ async function openBookShelf(
 		watchlaterOn,
 		favoriteOff,
 		favoriteOn
-	} = getShelfComponents(tr, interaction.user.id, index, res);
+	} = getShelfComponents(tr, userId, scopeId, index, res);
 
 	return {
 		embeds: [getShelfBook(res.data[index - 1])],
@@ -163,7 +175,8 @@ function getBookPage(book: any, page: number) {
 		.setImage(imageUrl);
 }
 
-function getShelfComponents(tr: any, id: string, index: number, res: any) {
+// customId format: {action}-{ownerId}-{scopeId}
+function getShelfComponents(tr: any, id: string, scopeId: string, index: number, res: any) {
 	const pagination = res?.pagination;
 	let totalPages = 1,
 		currentPage = 1;
@@ -177,17 +190,17 @@ function getShelfComponents(tr: any, id: string, index: number, res: any) {
 	}
 
 	const backD = new ButtonBuilder()
-		.setCustomId(`shelfBackD-${id}`)
+		.setCustomId(`shelfBackD-${id}-${scopeId}`)
 		.setEmoji("⏪")
 		.setStyle(ButtonStyle.Primary);
 
 	const back = new ButtonBuilder()
-		.setCustomId(`shelfBack-${id}`)
+		.setCustomId(`shelfBack-${id}-${scopeId}`)
 		.setEmoji("◀️")
 		.setStyle(ButtonStyle.Primary);
 
 	const page = new ButtonBuilder()
-		.setCustomId(`shelfPage-${id}`)
+		.setCustomId(`shelfPage-${id}-${scopeId}`)
 		.setLabel(
 			tr("shelfpage", {
 				index: index,
@@ -200,41 +213,41 @@ function getShelfComponents(tr: any, id: string, index: number, res: any) {
 		.setDisabled(true);
 
 	const next = new ButtonBuilder()
-		.setCustomId(`shelfNext-${id}`)
+		.setCustomId(`shelfNext-${id}-${scopeId}`)
 		.setEmoji("▶️")
 		.setStyle(ButtonStyle.Primary);
 
 	const nextD = new ButtonBuilder()
-		.setCustomId(`shelfNextD-${id}`)
+		.setCustomId(`shelfNextD-${id}-${scopeId}`)
 		.setEmoji("⏩")
 		.setStyle(ButtonStyle.Primary);
 
 	const check = new ButtonBuilder()
-		.setCustomId(`shelfCheck-${id}`)
+		.setCustomId(`shelfCheck-${id}-${scopeId}`)
 		.setLabel(tr("check"))
 		.setEmoji("✅")
 		.setStyle(ButtonStyle.Success);
 
 	const watchlaterOff = new ButtonBuilder()
-		.setCustomId(`watchlaterOff-${id}`)
+		.setCustomId(`watchlaterOff-${id}-${scopeId}`)
 		.setLabel(tr("watchlaterOff"))
 		.setEmoji("🕓")
 		.setStyle(ButtonStyle.Secondary);
 
 	const watchlaterOn = new ButtonBuilder()
-		.setCustomId(`watchlaterOn-${id}`)
+		.setCustomId(`watchlaterOn-${id}-${scopeId}`)
 		.setLabel(tr("watchlaterOn"))
 		.setEmoji("🕓")
 		.setStyle(ButtonStyle.Success);
 
 	const favoriteOff = new ButtonBuilder()
-		.setCustomId(`favoriteOff-${id}`)
+		.setCustomId(`favoriteOff-${id}-${scopeId}`)
 		.setLabel(tr("favoriteOff"))
 		.setEmoji("❤️")
 		.setStyle(ButtonStyle.Secondary);
 
 	const favoriteOn = new ButtonBuilder()
-		.setCustomId(`favoriteOn-${id}`)
+		.setCustomId(`favoriteOn-${id}-${scopeId}`)
 		.setLabel(tr("favoriteOn"))
 		.setEmoji("❤️")
 		.setStyle(ButtonStyle.Success);
@@ -253,18 +266,18 @@ function getShelfComponents(tr: any, id: string, index: number, res: any) {
 	};
 }
 
-async function getBookComponents(tr: any, id: string, book: any) {
+async function getBookComponents(tr: any, id: string, scopeId: string, book: any) {
 	const userdb = await database.get(id);
 	const cmdMenu = new StringSelectMenuBuilder()
 		.setPlaceholder(tr("cmdMenu"))
-		.setCustomId("book_selectMenu")
+		.setCustomId(`book_selectMenu-${id}-${scopeId}`)
 		.setMinValues(1)
 		.setMaxValues(1)
 		.addOptions(
 			{
 				emoji: "🔒",
 				label: tr("book_stop"),
-				value: `bookStop-${id}`
+				value: `bookStop-${id}-${scopeId}`
 			},
 			{
 				emoji: "🕓",
@@ -273,7 +286,7 @@ async function getBookComponents(tr: any, id: string, book: any) {
 				)
 					? tr("watchlaterOn") + "✔️"
 					: tr("watchlaterOff"),
-				value: `bookWatchlater-${id}`
+				value: `bookWatchlater-${id}-${scopeId}`
 			},
 			{
 				emoji: "❤️",
@@ -282,7 +295,7 @@ async function getBookComponents(tr: any, id: string, book: any) {
 				)
 					? tr("favoriteOn") + "✔️"
 					: tr("favoriteOff"),
-				value: `bookFavorite-${id}`
+				value: `bookFavorite-${id}-${scopeId}`
 			},
 			{
 				emoji: "📥",
@@ -298,7 +311,7 @@ async function getBookComponents(tr: any, id: string, book: any) {
 
 	const tagMenu = new StringSelectMenuBuilder()
 		.setPlaceholder(tr("tagMenu"))
-		.setCustomId("book_tagsSelectMenu")
+		.setCustomId(`book_tagsSelectMenu-${id}-${scopeId}`)
 		.setMinValues(1)
 		.setMaxValues(1)
 		.addOptions(
@@ -361,16 +374,16 @@ async function getBookComponents(tr: any, id: string, book: any) {
 		);
 
 	const bookBack = new ButtonBuilder()
-		.setCustomId(`bookBack-${id}`)
+		.setCustomId(`bookBack-${id}-${scopeId}`)
 		.setEmoji("⬅")
 		.setStyle(ButtonStyle.Primary);
 	const bookPage = new ButtonBuilder()
-		.setCustomId(`bookPage-${id}`)
+		.setCustomId(`bookPage-${id}-${scopeId}`)
 		.setLabel(`${book.currentPage}/${book.totalPages}`)
 		.setStyle(ButtonStyle.Secondary)
 		.setDisabled(true);
 	const bookNext = new ButtonBuilder()
-		.setCustomId(`bookNext-${id}`)
+		.setCustomId(`bookNext-${id}-${scopeId}`)
 		.setEmoji("➡")
 		.setStyle(ButtonStyle.Primary);
 
