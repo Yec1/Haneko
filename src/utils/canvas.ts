@@ -146,10 +146,10 @@ export async function drawGalleryGrid(
 
     // Number badge (top-left)
     ctx.fillStyle = "rgba(0,0,0,0.75)";
-    ctx.fillRect(x + 4, y + 4, 26, 20);
+    ctx.fillRect(x + 4, y + 4, 44, 20);
     ctx.fillStyle = "#58a6ff";
     ctx.font = `bold 11px ${FONT_BODY}`;
-    ctx.fillText(`${item.index}`, x + 8, y + 17);
+    ctx.fillText(String(item.id).padStart(6, "0"), x + 8, y + 17);
 
     // Pages badge (top-right)
     const pText = `${item.num_pages}p`;
