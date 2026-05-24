@@ -108,7 +108,7 @@ export async function drawGalleryGrid(
   );
 
   for (let i = 0; i < count; i++) {
-    const item = items[i];
+    const item = items[i]!;
     const col = i % COLS;
     const row = Math.floor(i / COLS);
     const x = PAD + col * (CARD_W + PAD);

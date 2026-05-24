@@ -26,7 +26,7 @@ export function formatTagSection(tags: NHTag[]): string {
   const order = ["parody", "character", "artist", "group", "language", "category", "tag"];
   return order
     .filter(t => groups[t])
-    .map(t => `${TAG_EMOJIS[t] ?? "🏷️"} **${t}:** ${groups[t].join(", ")}`)
+    .map(t => `${TAG_EMOJIS[t] ?? "🏷️"} **${t}:** ${groups[t]!.join(", ")}`)
     .join("\n");
 }
 
@@ -74,7 +74,7 @@ export async function buildSingleGalleryReply(
   // Image URL for current page
   let imageUrl: string;
   if (gallery.pages && gallery.pages[currentPage - 1]) {
-    imageUrl = nh.imageUrl(gallery.pages[currentPage - 1].path);
+    imageUrl = nh.imageUrl(gallery.pages![currentPage - 1]!.path);
   } else {
     imageUrl = nh.thumbUrl(gallery);
   }

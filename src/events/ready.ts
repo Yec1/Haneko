@@ -1,34 +1,26 @@
-import { client, cluster, nhentai } from "../index.js";
-import { Events, ActivityType } from "discord.js";
-import { Logger } from "../services/logger.js";
+import { Events, REST, Routes, type Client } from "discord.js";
+import type { Event } from "../interfaces/Event";
+import { Logger } from "../utils/Logger";
+import type { ExtendedClient } from "../structures/Client";
 
-async function updatePresence(): Promise<void> {
-	const results = await cluster.broadcastEval(
-		(c: any) => c.guilds.cache.size
-	);
-	const totalGuilds = results.reduce(
-		(prev: number, val: number) => prev + val,
-		0
-	);
+const logger = new Logger("Ready");
 
-	client.user?.setPresence({
-		activities: [
-			{
-				name: `${totalGuilds} 個伺服器`,
-				type: ActivityType.Watching
-			}
-		],
-		status: "online"
-	});
-}
+export default {
+  name: Events.ClientReady,
+  once: true,
+  async execute(client: Client) {
+    const ext = client as ExtendedClient;
+    logger.success(`Logged in as ${client.user?.tag}`);
+    logger.info(`Serving ${client.guilds.cache.size} guilds`);
 
-async function updateCookie(): Promise<void> {
-	new Logger("系統").success(`正在刷新 nhentai cookie...`);
-	await nhentai.getRandom();
-}
-
-client.on(Events.ClientReady, async () => {
-	new Logger("系統").success(`${client.user?.tag} 已經上線！`);
-	setInterval(updatePresence, 10000);
-	setInterval(updateCookie, 20 * 60 * 1000);
-});
+    // Deploy slash commands
+    try {
+      const commands = [...ext.commands.values()].map((cmd) => cmd.data.toJSON());
+      const rest = new REST().setToken(process.env.DISCORD_TOKEN!);
+      await rest.put(Routes.applicationCommands(client.user!.id), { body: commands });
+      logger.success(`Deployed ${commands.length} slash command(s) globally`);
+    } catch (err) {
+      logger.error(`Failed to deploy slash commands: ${err}`);
+    }
+  },
+} satisfies Event;
