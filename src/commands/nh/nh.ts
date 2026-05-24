@@ -15,19 +15,25 @@ const command: Command = {
     .setDescription("nhentai 相關指令")
     // /nh random
     .addSubcommand(sub =>
-      sub.setName("random").setDescription("隨機一本"))
+      sub.setName("random").setDescription("隨機一本")
+        .addBooleanOption(o =>
+          o.setName("public").setDescription("是否公開（允許所有人操作按鈕，預設關閉）")))
     // /nh read
     .addSubcommand(sub =>
       sub.setName("read")
         .setDescription("查看指定本子")
         .addIntegerOption(o =>
-          o.setName("id").setDescription("nhentai ID").setRequired(true).setMinValue(1)))
+          o.setName("id").setDescription("nhentai ID").setRequired(true).setMinValue(1))
+        .addBooleanOption(o =>
+          o.setName("public").setDescription("是否公開（允許所有人操作按鈕，預設關閉）")))
     // /nh browse
     .addSubcommand(sub =>
       sub.setName("browse")
         .setDescription("瀏覽最新上傳")
         .addIntegerOption(o =>
-          o.setName("page").setDescription("頁碼（預設 1）").setMinValue(1)))
+          o.setName("page").setDescription("頁碼（預設 1）").setMinValue(1))
+        .addBooleanOption(o =>
+          o.setName("public").setDescription("是否公開（允許所有人操作按鈕，預設關閉）")))
     // /nh search
     .addSubcommand(sub =>
       sub.setName("search")
@@ -42,7 +48,9 @@ const command: Command = {
             { name: "熱門（全時）", value: "popular" },
             { name: "熱門（今日）", value: "popular-today" },
             { name: "熱門（本週）", value: "popular-week" },
-          )))
+          ))
+        .addBooleanOption(o =>
+          o.setName("public").setDescription("是否公開（允許所有人操作按鈕，預設關閉）")))
     // /nh popular
     .addSubcommand(sub =>
       sub.setName("popular")
@@ -54,13 +62,17 @@ const command: Command = {
             { name: "本週", value: "popular-week" },
           ))
         .addIntegerOption(o =>
-          o.setName("page").setDescription("頁碼（預設 1）").setMinValue(1)))
+          o.setName("page").setDescription("頁碼（預設 1）").setMinValue(1))
+        .addBooleanOption(o =>
+          o.setName("public").setDescription("是否公開（允許所有人操作按鈕，預設關閉）")))
     // /nh related
     .addSubcommand(sub =>
       sub.setName("related")
         .setDescription("查看相關作品")
         .addIntegerOption(o =>
-          o.setName("id").setDescription("nhentai ID").setRequired(true).setMinValue(1)))
+          o.setName("id").setDescription("nhentai ID").setRequired(true).setMinValue(1))
+        .addBooleanOption(o =>
+          o.setName("public").setDescription("是否公開（允許所有人操作按鈕，預設關閉）")))
     // /nh download
     .addSubcommand(sub =>
       sub.setName("download")
@@ -88,7 +100,9 @@ const command: Command = {
         .addStringOption(o =>
           o.setName("name").setDescription("Tag 名稱").setRequired(true))
         .addIntegerOption(o =>
-          o.setName("page").setDescription("頁碼（預設 1）").setMinValue(1)))
+          o.setName("page").setDescription("頁碼（預設 1）").setMinValue(1))
+        .addBooleanOption(o =>
+          o.setName("public").setDescription("是否公開（允許所有人操作按鈕，預設關閉）")))
     // /nh me subcommands
     .addSubcommandGroup(group =>
       group.setName("me").setDescription("個人收藏與黑名單")
@@ -128,6 +142,7 @@ const command: Command = {
     const sub = interaction.options.getSubcommand(false);
     const group = interaction.options.getSubcommandGroup(false);
     const userId = interaction.user.id;
+    const isPublic = interaction.options.getBoolean("public") ?? false;
 
     await interaction.deferReply();
 
@@ -136,7 +151,7 @@ const command: Command = {
       if (sub === "random" && !group) {
         const gallery = await nh.getRandomGallery();
         const tags = gallery.tags ?? [];
-        const reply = await buildSingleGalleryReply(gallery, tags, nh, db, userId);
+        const reply = await buildSingleGalleryReply(gallery, tags, nh, db, userId, { isPublic });
         await interaction.editReply(reply as any);
         return;
       }
@@ -150,7 +165,7 @@ const command: Command = {
           return;
         }
         const tags = gallery.tags ?? [];
-        const reply = await buildSingleGalleryReply(gallery, tags, nh, db, userId);
+        const reply = await buildSingleGalleryReply(gallery, tags, nh, db, userId, { isPublic });
         await interaction.editReply(reply as any);
         return;
       }
@@ -201,6 +216,7 @@ const command: Command = {
           total,
           ownerId: userId,
           context: listCtx,
+          isPublic,
         });
         await interaction.editReply({ components: listReply.components as any, files: listReply.files, flags: listReply.flags } as any);
         return;
@@ -249,6 +265,7 @@ const command: Command = {
             total: favIds.length,
             ownerId: userId,
             context: `favorites:${userId}`,
+            isPublic,
           });
           await interaction.editReply({ components: favReply.components as any, files: favReply.files, flags: favReply.flags } as any);
           return;
@@ -263,7 +280,7 @@ const command: Command = {
           const id = favIds[Math.floor(Math.random() * favIds.length)];
           const gallery = await nh.getGallery(id);
           const tags = gallery.tags ?? [];
-          const reply = await buildSingleGalleryReply(gallery, tags, nh, db, userId);
+          const reply = await buildSingleGalleryReply(gallery, tags, nh, db, userId, { isPublic });
           await interaction.editReply(reply as any);
           return;
         }

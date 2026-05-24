@@ -45,14 +45,15 @@ export default {
       const clickerId = interaction.user.id;
 
       // --- Team permission check ---
-      // customId format:
-      //   nh:fav:add/rm:{galleryId}:{ownerId}
-      //   nh:related:{galleryId}:{ownerId}
-      const ownerId = parts[parts.length - 1];
+      // customId format: nh:{action}:...:{ownerId}:{pub}
+      // pub = "1" means public (anyone can interact)
+      const pub = parts[parts.length - 1];
+      const isPublic = pub === "1";
+      const ownerId = isPublic ? parts[parts.length - 2]! : parts[parts.length - 1]!;
       const isOwner = clickerId === ownerId;
       const isTeamMember = !isOwner && db.teamIncludes(ownerId, clickerId);
 
-      if (!isOwner && !isTeamMember) {
+      if (!isPublic && !isOwner && !isTeamMember) {
         await interaction.reply({
           content: "❌ 你沒有權限操作此按鈕。若要操作他人的本子，對方需先將你加入團隊（`/team add`）。",
           ephemeral: true,
@@ -62,9 +63,9 @@ export default {
 
       const action = parts[1];
 
-      // nh:page:{galleryId}:{pageNum}:{ownerId}  (pageNum 1-indexed)
+      // nh:page:{galleryId}:{pageNum}:{ownerId}:{pub}
       if (action === "page") {
-        if (parts[4] === "noop") { await interaction.deferUpdate().catch(() => {}); return; }
+        if (parts[5] === "noop") { await interaction.deferUpdate().catch(() => {}); return; }
         await interaction.deferUpdate().catch(() => {});
         const galleryId = parseInt(parts[2]!);
         const pageNum = parseInt(parts[3]!);
@@ -72,7 +73,7 @@ export default {
           const { buildSingleGalleryReply } = require("../utils/nhDisplay");
           const gallery = await nh.getGallery(galleryId);
           const tags = gallery.tags ?? [];
-          const reply = await buildSingleGalleryReply(gallery, tags, nh, db, ownerId, { page: pageNum });
+          const reply = await buildSingleGalleryReply(gallery, tags, nh, db, ownerId, { page: pageNum, isPublic });
           await interaction.editReply(reply as any).catch(() => {});
         } catch (e: any) {
           await interaction.followUp({ content: `❌ ${e?.message ?? "錯誤"}`, ephemeral: true }).catch(() => {});
@@ -80,7 +81,7 @@ export default {
         return;
       }
 
-      // nh:jump:{galleryId}:{ownerId}  (select menu value = pageNum)
+      // nh:jump:{galleryId}:{ownerId}:{pub}  (select menu value = pageNum)
       if (action === "jump") {
         await interaction.deferUpdate().catch(() => {});
         const galleryId = parseInt(parts[2]!);
@@ -89,7 +90,7 @@ export default {
           const { buildSingleGalleryReply } = require("../utils/nhDisplay");
           const gallery = await nh.getGallery(galleryId);
           const tags = gallery.tags ?? [];
-          const reply = await buildSingleGalleryReply(gallery, tags, nh, db, ownerId, { page: pageNum });
+          const reply = await buildSingleGalleryReply(gallery, tags, nh, db, ownerId, { page: pageNum, isPublic });
           await interaction.editReply(reply as any).catch(() => {});
         } catch (e: any) {
           await interaction.followUp({ content: `❌ ${e?.message ?? "錯誤"}`, ephemeral: true }).catch(() => {});
@@ -125,6 +126,7 @@ export default {
             total: galleries.length,
             ownerId,
             context: `related:${galleryId}`,
+            isPublic,
           });
           await interaction.followUp({ components: listReply.components as any, files: listReply.files, flags: listReply.flags } as any).catch(() => {});
         } catch (e: any) {
@@ -132,7 +134,7 @@ export default {
         }
       }
 
-      // nh:select:{encodedCtx}:{ownerId} — select a gallery from list
+      // nh:select:{encodedCtx}:{ownerId}:{pub} — select a gallery from list
       if (action === "select") {
         await interaction.deferUpdate().catch(() => {});
         const galleryId = parseInt((interaction as any).values?.[0] ?? "0");
@@ -141,7 +143,7 @@ export default {
           const { buildSingleGalleryReply } = require("../utils/nhDisplay");
           const gallery = await nh.getGallery(galleryId);
           const tags = gallery.tags ?? [];
-          const reply = await buildSingleGalleryReply(gallery, tags, nh, db, ownerId, { page: 1 });
+          const reply = await buildSingleGalleryReply(gallery, tags, nh, db, ownerId, { page: 1, isPublic });
           await interaction.followUp({ ...reply } as any).catch(() => {});
         } catch (e: any) {
           await interaction.followUp({ content: `❌ ${e?.message ?? "錯誤"}`, ephemeral: true }).catch(() => {});
@@ -149,7 +151,7 @@ export default {
         return;
       }
 
-      // nh:listpage:{encodedCtx}:{pageNum}:{ownerId}
+      // nh:listpage:{encodedCtx}:{pageNum}:{ownerId}:{pub}
       if (action === "listpage") {
         await interaction.deferUpdate().catch(() => {});
         const encodedCtx = parts[2]!;
@@ -177,7 +179,7 @@ export default {
           }
           const totalPages = total ? Math.ceil(total / 20) : 1;
           const listReply = await buildGalleryListReply(galleries, nh, {
-            pageNum, totalPages, total, ownerId, context: ctx,
+            pageNum, totalPages, total, ownerId, context: ctx, isPublic,
           });
           await interaction.editReply({ components: listReply.components as any, files: listReply.files, flags: listReply.flags } as any).catch(() => {});
         } catch (e: any) {

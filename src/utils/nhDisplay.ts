@@ -32,9 +32,8 @@ export function formatTagSection(tags: NHTag[]): string {
 
 /**
  * Build select menu options centered around currentPage ±12 (max 25).
- * Adjusts range if near boundaries.
  */
-function buildJumpOptions(galleryId: number, ownerId: string, currentPage: number, totalPages: number) {
+function buildJumpOptions(galleryId: number, ownerId: string, currentPage: number, totalPages: number, pub: string) {
   const MAX = 25;
   const HALF = 12;
 
@@ -65,9 +64,10 @@ export async function buildSingleGalleryReply(
   nh: NHentaiService,
   db: CustomDatabase,
   userId: string,
-  opts: { ephemeral?: boolean; page?: number } = {},
+  opts: { ephemeral?: boolean; page?: number; isPublic?: boolean } = {},
 ) {
-  const { ephemeral = false, page = 1 } = opts;
+  const { ephemeral = false, page = 1, isPublic = false } = opts;
+  const pub = isPublic ? "1" : "0";
   const totalPages = gallery.pages?.length ?? gallery.num_pages;
   const currentPage = Math.max(1, Math.min(page, totalPages));
 
@@ -82,21 +82,17 @@ export async function buildSingleGalleryReply(
   const isFav = db.nhIsFavorite(userId, gallery.id);
   const title = gallery.title.english || gallery.title.japanese || gallery.title.pretty || `#${gallery.id}`;
 
-  // Title + meta (no tags here)
   const titleText = `## [${title}](${galleryUrl(gallery.id)})\n\`#${gallery.id}\`  •  📄 **${gallery.num_pages}** 頁  •  ❤️ **${gallery.num_favorites}**`;
-
-  // Tags text (separate block)
   const tagsText = tags.length > 0 ? formatTagSection(tags) : null;
 
-  // IS_COMPONENTS_V2 = 1 << 15
   let flags = 1 << 15;
   if (ephemeral) flags |= 64;
 
-  const jumpOptions = buildJumpOptions(gallery.id, userId, currentPage, totalPages);
+  const jumpOptions = buildJumpOptions(gallery.id, userId, currentPage, totalPages, pub);
 
   const innerComponents: object[] = [
     {
-      type: 10, // TextDisplay — title + meta
+      type: 10,
       content: titleText,
     },
     {
@@ -105,26 +101,25 @@ export async function buildSingleGalleryReply(
     },
     { type: 14, divider: true, spacing: 1 },
     {
-      // Page navigation row
       type: 1,
       components: [
         {
           type: 2,
-          custom_id: `nh:page:${gallery.id}:${currentPage - 1}:${userId}`,
+          custom_id: `nh:page:${gallery.id}:${currentPage - 1}:${userId}:${pub}`,
           label: "◀",
           style: 2,
           disabled: currentPage <= 1,
         },
         {
           type: 2,
-          custom_id: `nh:page:${gallery.id}:${currentPage}:${userId}:noop`,
+          custom_id: `nh:page:${gallery.id}:${currentPage}:${userId}:${pub}:noop`,
           label: `${currentPage} / ${totalPages}`,
           style: 2,
           disabled: true,
         },
         {
           type: 2,
-          custom_id: `nh:page:${gallery.id}:${currentPage + 1}:${userId}`,
+          custom_id: `nh:page:${gallery.id}:${currentPage + 1}:${userId}:${pub}`,
           label: "▶",
           style: 2,
           disabled: currentPage >= totalPages,
@@ -132,11 +127,10 @@ export async function buildSingleGalleryReply(
       ],
     },
     ...(jumpOptions.length > 1 ? [{
-      // Jump select menu
       type: 1,
       components: [{
-        type: 3, // StringSelect
-        custom_id: `nh:jump:${gallery.id}:${userId}`,
+        type: 3,
+        custom_id: `nh:jump:${gallery.id}:${userId}:${pub}`,
         placeholder: `跳至頁面（共 ${totalPages} 頁）`,
         options: jumpOptions,
       }],
@@ -144,26 +138,25 @@ export async function buildSingleGalleryReply(
     ...(tagsText ? [{ type: 14, divider: true, spacing: 1 }, { type: 10, content: tagsText }] : []),
     { type: 14, divider: true, spacing: 1 },
     {
-      // Action row: fav / related / download
       type: 1,
       components: [
         {
           type: 2,
-          custom_id: `nh:fav:${isFav ? "rm" : "add"}:${gallery.id}:${userId}`,
+          custom_id: `nh:fav:${isFav ? "rm" : "add"}:${gallery.id}:${userId}:${pub}`,
           label: isFav ? "取消收藏" : "加入收藏",
           emoji: { name: isFav ? "💔" : "❤️" },
           style: isFav ? 4 : 3,
         },
         {
           type: 2,
-          custom_id: `nh:related:${gallery.id}:${userId}`,
+          custom_id: `nh:related:${gallery.id}:${userId}:${pub}`,
           label: "相關作品",
           emoji: { name: "🔗" },
           style: 2,
         },
         {
           type: 2,
-          custom_id: `nh:dl:zip:${gallery.id}:${userId}`,
+          custom_id: `nh:dl:zip:${gallery.id}:${userId}:${pub}`,
           label: "下載 ZIP",
           emoji: { name: "📦" },
           style: 2,
@@ -174,7 +167,7 @@ export async function buildSingleGalleryReply(
 
   const components: object[] = [
     {
-      type: 17, // Container
+      type: 17,
       components: innerComponents,
     },
   ];
@@ -194,13 +187,13 @@ export async function buildGalleryListReply(
     totalPages?: number;
     total?: number;
     ownerId: string;
-    /** context key used in select customId, e.g. "browse", "search:{query}" */
     context: string;
+    isPublic?: boolean;
   },
 ) {
-  const { ephemeral = false, pageNum = 1, totalPages = 1, total = 0, ownerId, context } = opts;
+  const { ephemeral = false, pageNum = 1, totalPages = 1, total = 0, ownerId, context, isPublic = false } = opts;
+  const pub = isPublic ? "1" : "0";
 
-  // Build grid items (up to 20)
   const slice = galleries.slice(0, 20);
   const items: GridItem[] = slice.map((g, i) => {
     const titleText =
@@ -210,7 +203,6 @@ export async function buildGalleryListReply(
       (g as any).english_title ||
       (g as any).japanese_title ||
       `#${g.id}`;
-    // thumb: list item thumbnail may be string path or object
     const thumbPath =
       typeof (g as any).thumbnail === "string"
         ? (g as any).thumbnail
@@ -228,28 +220,27 @@ export async function buildGalleryListReply(
   const buf = await drawGalleryGrid(items, nh);
   const attachment = new AttachmentBuilder(buf, { name: "nh-grid.png" });
 
-  // SelectMenu options
   const selectOptions = items.map((item) => ({
     label: `${item.index}. #${item.id}`,
     description: item.titleText.slice(0, 50) || `#${item.id}`,
     value: `${item.id}`,
   }));
 
-  let flags = 1 << 15; // IS_COMPONENTS_V2
+  let flags = 1 << 15;
   if (ephemeral) flags |= 64;
 
   const encodedCtx = encodeURIComponent(context).slice(0, 60);
 
   const components: object[] = [
     {
-      type: 17, // Container
+      type: 17,
       components: [
         {
           type: 10,
           content: `📋 第 **${pageNum}** 頁 / 共 **${totalPages}** 頁（${total} 本）`,
         },
         {
-          type: 12, // MediaGallery — grid image
+          type: 12,
           items: [{ media: { url: "attachment://nh-grid.png" } }],
         },
         { type: 14, divider: true, spacing: 1 },
@@ -257,8 +248,8 @@ export async function buildGalleryListReply(
           type: 1,
           components: [
             {
-              type: 3, // StringSelect
-              custom_id: `nh:select:${encodedCtx}:${ownerId}`,
+              type: 3,
+              custom_id: `nh:select:${encodedCtx}:${ownerId}:${pub}`,
               placeholder: "選擇一本查看詳情",
               options: selectOptions,
             },
@@ -271,14 +262,14 @@ export async function buildGalleryListReply(
             components: [
               {
                 type: 2,
-                custom_id: `nh:listpage:${encodedCtx}:${pageNum - 1}:${ownerId}`,
+                custom_id: `nh:listpage:${encodedCtx}:${pageNum - 1}:${ownerId}:${pub}`,
                 label: "◀ 上一頁",
                 style: 2,
                 disabled: pageNum <= 1,
               },
               {
                 type: 2,
-                custom_id: `nh:listpage:${encodedCtx}:${pageNum + 1}:${ownerId}`,
+                custom_id: `nh:listpage:${encodedCtx}:${pageNum + 1}:${ownerId}:${pub}`,
                 label: "下一頁 ▶",
                 style: 2,
                 disabled: pageNum >= totalPages,
@@ -292,4 +283,3 @@ export async function buildGalleryListReply(
 
   return { components, flags, files: [attachment] };
 }
-
