@@ -2,6 +2,7 @@ import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
   PermissionFlagsBits,
+  MessageFlags,
 } from "discord.js";
 import type { Command } from "../../interfaces/Command";
 
@@ -15,7 +16,7 @@ const command: Command = {
     const { db } = interaction.client as any;
     const guildId = interaction.guildId;
     if (!guildId) {
-      await interaction.reply({ content: "❌ 此指令只能在伺服器中使用。", ephemeral: true });
+      await interaction.reply({ content: "❌ 此指令只能在伺服器中使用。", flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -24,9 +25,9 @@ const command: Command = {
     db.nhGuildSetNsfwUnlock(guildId, next);
 
     if (next) {
-      await interaction.reply({ content: "🔓 現在不需要在 NSFW 頻道就可以看本了", ephemeral: true });
+      await interaction.reply({ content: "🔓 現在不需要在 NSFW 頻道就可以看本了", flags: MessageFlags.Ephemeral });
     } else {
-      await interaction.reply({ content: "🔒 現在需要在 NSFW 頻道才可以看本", ephemeral: true });
+      await interaction.reply({ content: "🔒 現在需要在 NSFW 頻道才可以看本", flags: MessageFlags.Ephemeral });
     }
   },
 };

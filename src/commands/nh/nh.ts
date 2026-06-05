@@ -1,6 +1,7 @@
 import {
   SlashCommandBuilder,
   ChatInputCommandInteraction,
+  MessageFlags,
 } from "discord.js";
 import type { Command } from "../../interfaces/Command";
 import { checkCooldown, setCooldown } from "../../utils/cooldown";
@@ -155,14 +156,14 @@ const command: Command = {
       // Let admin commands pass even in non-nsfw channels
       const group = interaction.options.getSubcommandGroup(false);
       if (group !== "admin" && !isChannelNsfw && !nsfwUnlocked) {
-        await interaction.reply({ content: "❌ 請在 NSFW 頻道使用這個指令", ephemeral: true });
+        await interaction.reply({ content: "❌ 請在 NSFW 頻道使用這個指令", flags: MessageFlags.Ephemeral });
         return;
       }
     }
 
     const cooldown = checkCooldown(`${interaction.user.id}:nh`, COOLDOWN_MS);
     if (cooldown) {
-      await interaction.reply({ content: `⏳ 指令冷卻中，請等待 ${cooldown} 秒`, ephemeral: true });
+      await interaction.reply({ content: `⏳ 指令冷卻中，請等待 ${cooldown} 秒`, flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -171,7 +172,7 @@ const command: Command = {
     const userId = interaction.user.id;
     const isPublic = interaction.options.getBoolean("public") ?? true;
     const isPersonal = group === "me" || group === "admin" || sub === "download";
-    await interaction.deferReply({ ephemeral: isPersonal });
+    await interaction.deferReply({ flags: isPersonal ? MessageFlags.Ephemeral : undefined });
 
     try {
       // ── /nh random ──────────────────────────────────────
@@ -417,7 +418,11 @@ const command: Command = {
       await interaction.editReply({ content: "未知指令。" });
     } catch (err: any) {
       console.error("[nh command]", err);
-      await interaction.editReply({ content: `❌ 發生錯誤：${err?.message ?? "未知"}` }).catch(() => {});
+      if (err?.code === 20009) {
+        await interaction.editReply({ content: "❌ 你的帳號隱私設定阻擋了此圖片的顯示。若要正常使用此功能，請至 Discord「使用者設定 -> 隱私&安全」關閉或調低「過濾敏感內容」。" }).catch(() => {});
+      } else {
+        await interaction.editReply({ content: `❌ 發生錯誤：${err?.message ?? "未知"}` }).catch(() => {});
+      }
     }
   },
 };
