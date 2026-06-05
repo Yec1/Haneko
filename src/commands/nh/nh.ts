@@ -129,6 +129,7 @@ const command: Command = {
           sub.setName("blacklist-remove")
             .setDescription("移除黑名單 Tag ID")
             .addIntegerOption(o => o.setName("tag_id").setDescription("Tag ID").setRequired(true).setMinValue(1)))
+<<<<<<< HEAD
     )
     // /nh admin subcommands
     .addSubcommandGroup(group =>
@@ -160,22 +161,38 @@ const command: Command = {
       }
     }
 
+=======
+    ) as SlashCommandBuilder,
+
+  async execute(interaction: ChatInputCommandInteraction) {
+>>>>>>> d3ab5b8135c16d5a7e862c91f093a289cf9f6afb
     const cooldown = checkCooldown(`${interaction.user.id}:nh`, COOLDOWN_MS);
     if (cooldown) {
       await interaction.reply({ content: `⏳ 指令冷卻中，請等待 ${cooldown} 秒`, ephemeral: true });
       return;
     }
 
+<<<<<<< HEAD
     const sub = interaction.options.getSubcommand(false);
     const group = interaction.options.getSubcommandGroup(false);
     const userId = interaction.user.id;
     const isPublic = interaction.options.getBoolean("public") ?? true;
     const isPersonal = group === "me" || group === "admin" || sub === "download";
     await interaction.deferReply({ ephemeral: isPersonal });
+=======
+    const { nh, db } = interaction.client as any;
+    const sub = interaction.options.getSubcommand(false);
+    const group = interaction.options.getSubcommandGroup(false);
+    const userId = interaction.user.id;
+    const isPublic = interaction.options.getBoolean("public") ?? false;
+
+    await interaction.deferReply();
+>>>>>>> d3ab5b8135c16d5a7e862c91f093a289cf9f6afb
 
     try {
       // ── /nh random ──────────────────────────────────────
       if (sub === "random" && !group) {
+<<<<<<< HEAD
         const guildId = interaction.guildId;
         const guildBlacklist = guildId ? db.nhGuildGetBlacklist(guildId) : [];
         let gallery;
@@ -187,6 +204,9 @@ const command: Command = {
            await interaction.editReply({ content: "找不到符合條件的本子（可能被黑名單過濾）" });
            return;
         }
+=======
+        const gallery = await nh.getRandomGallery();
+>>>>>>> d3ab5b8135c16d5a7e862c91f093a289cf9f6afb
         const tags = gallery.tags ?? [];
         const reply = await buildSingleGalleryReply(gallery, tags, nh, db, userId, { isPublic });
         await interaction.editReply(reply as any);
@@ -236,12 +256,17 @@ const command: Command = {
           galleries = res; total = res.length;
         }
 
+<<<<<<< HEAD
         const guildId = interaction.guildId;
         const guildBlacklist = guildId ? db.nhGuildGetBlacklist(guildId) : [];
         galleries = nh.filterBlacklisted(galleries, guildBlacklist.map(b => b.tag_id));
 
         if (!galleries.length) {
           await interaction.editReply({ content: "沒有找到任何結果（或皆被伺服器黑名單過濾）。" });
+=======
+        if (!galleries.length) {
+          await interaction.editReply({ content: "沒有找到任何結果。" });
+>>>>>>> d3ab5b8135c16d5a7e862c91f093a289cf9f6afb
           return;
         }
 
@@ -265,6 +290,10 @@ const command: Command = {
 
       // ── /nh download ─────────────────────────────────────
       if (sub === "download") {
+<<<<<<< HEAD
+=======
+        await interaction.deferReply();
+>>>>>>> d3ab5b8135c16d5a7e862c91f093a289cf9f6afb
         const id = interaction.options.getInteger("id", true);
         const format = (interaction.options.getString("format") ?? "zip") as "zip" | "cbz" | "torrent";
         try {
@@ -371,6 +400,7 @@ const command: Command = {
         }
       }
 
+<<<<<<< HEAD
       if (group === "admin") {
         if (!interaction.memberPermissions?.has("ManageGuild")) {
           await interaction.editReply({ content: "❌ 你需要有 **管理伺服器** 權限才能使用此指令。" });
@@ -414,6 +444,8 @@ const command: Command = {
         }
       }
 
+=======
+>>>>>>> d3ab5b8135c16d5a7e862c91f093a289cf9f6afb
       await interaction.editReply({ content: "未知指令。" });
     } catch (err: any) {
       console.error("[nh command]", err);

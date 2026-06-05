@@ -4,8 +4,13 @@
   "description": "nHentai Discord Bot — v2 API",
   "main": "dist/cluster.js",
 	"scripts": {
+<<<<<<< HEAD
 		"dev": "npm run build && cross-env NODE_ENV=development node dist/cluster.js",
 		"start": "npm run build && node dist/cluster.js",
+=======
+		"dev": "npm run build && cross-env NODE_ENV=dev node dist/cluster.js",
+		"start": "node dist/cluster.js",
+>>>>>>> d3ab5b8135c16d5a7e862c91f093a289cf9f6afb
 		"build": "rimraf dist && tsc",
 		"build:watch": "tsc --watch",
 		"lint": "eslint src/**/* --ext .ts",
@@ -14,6 +19,7 @@
 		"test": "jest",
 		"diagnose": "node --version && npm --version && npx tsc --version && echo 'TypeScript files found:' && find src -name '*.ts' | head -10"
 	},
+<<<<<<< HEAD
   "type": "commonjs",
   "license": "MIT",
   "dependencies": {
@@ -27,6 +33,28 @@
     "typescript": "^5.9.2"
   },
   "devDependencies": {
+=======
+	"license": "MIT",
+	"keywords": [
+		"nHentai"
+	],
+	"dependencies": {
+		"@yeci226/nhentai-ts": "yeci226/nhentai-ts",
+		"better-sqlite3": "^12.2.0",
+		"discord-hybrid-sharding": "^2.2.6",
+		"discord.js": "^14.21.0",
+		"dotenv": "^17.2.1",
+		"moment-timezone": "^0.6.0",
+		"ms": "^2.1.3",
+		"npm-check-updates": "^18.0.2",
+		"os": "^0.1.2",
+		"queue": "^7.0.0",
+		"quick.db": "^9.1.7",
+		"rimraf": "^6.0.1",
+		"typescript": "^5.9.2"
+	},
+	"devDependencies": {
+>>>>>>> d3ab5b8135c16d5a7e862c91f093a289cf9f6afb
 		"@babel/core": "^7.28.0",
 		"@babel/preset-env": "^7.28.0",
 		"@types/better-sqlite3": "^7.6.13",
