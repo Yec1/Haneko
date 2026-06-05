@@ -1,33 +1,28 @@
-import { client } from "../index.js";
-import { WebhookClient, EmbedBuilder } from "discord.js";
-import { Logger } from "../services/logger.js";
+import { Events, WebhookClient, EmbedBuilder } from "discord.js";
+import type { Event } from "../interfaces/Event.js";
+import { Logger } from "../utils/Logger.js";
 
-const webhook = new WebhookClient({
-	url: process.env.ERRWEBHOOK!
-});
+const logger = new Logger("系統");
 
-client.on("error", (error: Error) => {
-	console.log(error);
-	webhook.send({
-		embeds: [
-			new EmbedBuilder().setTimestamp().setDescription(`${error.message}`)
-		]
-	});
-	new Logger("系統").error(`錯誤訊息：${error.message}`);
-});
+const webhook = process.env.ERRWEBHOOK
+  ? new WebhookClient({ url: process.env.ERRWEBHOOK })
+  : null;
 
-client.on("warn", (message: string) => {
-	new Logger("系統").warn(`警告訊息：${message}`);
-});
+function sendError(error: Error) {
+  logger.error(`錯誤訊息：${error.message}`);
+  webhook?.send({
+    embeds: [new EmbedBuilder().setTimestamp().setDescription(`${error.message ?? String(error)}`)],
+  }).catch(() => {});
+}
 
-process.on("unhandledRejection", (error: Error) => {
-	console.log(error);
-	webhook.send({
-		embeds: [
-			new EmbedBuilder().setTimestamp().setDescription(`${error.message}`)
-		]
-	});
-	new Logger("系統").error(`錯誤訊息：${error.message}`);
-});
+process.on("unhandledRejection", (error: any) => sendError(error));
+process.on("uncaughtException", (error: Error) => sendError(error));
 
-process.on("uncaughtException", console.error);
+export default {
+  name: Events.Error,
+  once: false,
+  async execute(error: Error) {
+    sendError(error);
+    logger.warn(`Client error: ${error.message}`);
+  },
+} satisfies Event;

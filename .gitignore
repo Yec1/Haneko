@@ -6,6 +6,7 @@ package-lock.json
 yarn.lock
 pnpm-lock.yaml
 run.bat
+json.sqlite-*
 json.sqlite
 runner.log
 yarn-error.log
@@ -14,7 +15,6 @@ yarn-error.log
 
 # env
 .env
-.env.*
 env.development
 env.production
 *.tmp

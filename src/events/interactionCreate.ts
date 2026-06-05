@@ -1,187 +1,237 @@
-import { client, commands } from "../index.js";
-import {
-	ApplicationCommandOptionType,
-	PermissionsBitField,
-	Events,
-	EmbedBuilder,
-	WebhookClient,
-	ChannelType,
-	Interaction,
-	ButtonInteraction,
-	MessageFlags
-} from "discord.js";
-import { createTranslator } from "../services/i18n.js";
-import { Logger } from "../services/logger.js";
-import {
-	getCommandAckPlan,
-	ensureDeferredReply,
-	replyOrFollowUp
-} from "../utils/sharedCompat.js";
+import { Events, type Interaction } from "discord.js";
+import type { Event } from "../interfaces/Event";
+import { Logger } from "../utils/Logger";
 
-const webhook = new WebhookClient({ url: process.env.CMDWEBHOOK! });
+const logger = new Logger("Interaction");
 
-const permissionsToCheck = [
-	PermissionsBitField.Flags.SendMessages,
-	PermissionsBitField.Flags.ViewChannel,
-	PermissionsBitField.Flags.EmbedLinks,
-	PermissionsBitField.Flags.ReadMessageHistory
-];
+export default {
+  name: Events.InteractionCreate,
+  async execute(interaction: Interaction) {
+    if (interaction.isChatInputCommand()) {
+      const client = interaction.client as any;
+      const command = client.commands?.get(interaction.commandName);
+      if (!command) return;
+      try {
+        logger.command(`/${interaction.commandName} by ${interaction.user.tag}`);
+        await command.execute(interaction);
+      } catch (err) {
+        logger.error(`Command error (${interaction.commandName}):`, err);
+        const msg = { content: "❌ 執行指令時發生錯誤，請稍後再試。", flags: 64 };
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(msg).catch(() => {});
+        } else {
+          await interaction.reply(msg).catch(() => {});
+        }
+      }
+      return;
+    }
 
-const permissionNames: Record<string, string> = {
-	[PermissionsBitField.Flags.SendMessages.toString()]: "SendMessages",
-	[PermissionsBitField.Flags.ViewChannel.toString()]: "ViewChannel",
-	[PermissionsBitField.Flags.EmbedLinks.toString()]: "EmbedLinks",
-	[PermissionsBitField.Flags.ReadMessageHistory.toString()]:
-		"ReadMessageHistory"
-};
+    if (interaction.isAutocomplete()) {
+      const client = interaction.client as any;
+      const command = client.commands?.get(interaction.commandName);
+      if (command?.autocomplete) {
+        await command.autocomplete(interaction).catch(() => {});
+      }
+    }
 
-client.on(
-	Events.InteractionCreate,
-	async (interaction: Interaction): Promise<void> => {
-		if (interaction.channel?.type == ChannelType.DM) return;
+    // Button interactions for nh
+    if (interaction.isButton() || interaction.isStringSelectMenu()) {
+      const parts = interaction.customId.split(":");
+      const ns = parts[0];
+      if (ns !== "nh") return;
 
-		const i18n = createTranslator(interaction.locale || "en");
+      const client = interaction.client as any;
+      const { nh, db } = client;
+      const clickerId = interaction.user.id;
 
-		if (interaction.channel && interaction.guild?.members.me) {
-			const missingPermissions = permissionsToCheck.filter(
-				permission =>
-					!(interaction.channel as any)
-						?.permissionsFor?.(interaction.guild?.members.me!)
-						?.has(permission)
-			);
+      // --- NSFW restriction check ---
+      if (interaction.guildId) {
+        const isChannelNsfw = (interaction.channel as any)?.nsfw;
+        const nsfwUnlocked = db.nhGuildGetNsfwUnlock(interaction.guildId);
+        if (!isChannelNsfw && !nsfwUnlocked) {
+          await interaction.reply({ content: "❌ 請在 NSFW 頻道操作這個按鈕", ephemeral: true }).catch(() => {});
+          return;
+        }
+      }
 
-			if (missingPermissions.length > 0) {
-				const missingPermissionNames = missingPermissions.map(
-					permission => permissionNames[permission.toString()]
-				);
-				if (interaction.isRepliable()) {
-					await interaction.reply({
-						embeds: [
-							new EmbedBuilder()
-								.setThumbnail(
-									"https://media.discordapp.net/attachments/1057244827688910850/1110552508369219584/discord_1.gif"
-								)
-								.setTitle(
-									`${i18n("MissingPermission")}\n \`${missingPermissionNames.join("`, `")}\``
-								)
-								.setColor("#E06469")
-						],
-						flags: MessageFlags.Ephemeral
-					});
-				}
-				return;
-			}
-		}
+      // --- Team permission check ---
+      // customId format: nh:{action}:...:{ownerId}:{pub}
+      // pub = "1" means public (anyone can interact)
+      const pub = parts[parts.length - 1];
+      const isPublic = pub === "1";
+      const ownerId = isPublic ? parts[parts.length - 2]! : parts[parts.length - 1]!;
+      const isOwner = clickerId === ownerId;
+      const isTeamMember = !isOwner && db.teamIncludes(ownerId, clickerId);
 
-		if (interaction.isButton()) {
-			await (interaction as ButtonInteraction)
-				.deferUpdate()
-				.catch(() => {});
-		}
+      if (!isPublic && !isOwner && !isTeamMember) {
+        await interaction.reply({
+          content: "❌ 你沒有權限操作此按鈕。若要操作他人的本子，對方需先將你加入團隊（`/team add`）。",
+          ephemeral: true,
+        }).catch(() => {});
+        return;
+      }
 
-		if (interaction.isChatInputCommand()) {
-			const command = commands.slash.get(interaction.commandName);
-			if (!command) {
-				await replyOrFollowUp(interaction, {
-					content: "An error has occured",
-					flags: MessageFlags.Ephemeral
-				});
-				return;
-			}
+      const action = parts[1];
 
-			const args: string[] = [];
+      // nh:page:{galleryId}:{pageNum}:{ownerId}:{pub}
+      if (action === "page") {
+        if (parts[5] === "noop") { await interaction.deferUpdate().catch(() => {}); return; }
+        await interaction.deferUpdate().catch(() => {});
+        const galleryId = parseInt(parts[2]!);
+        const pageNum = parseInt(parts[3]!);
+        try {
+          const { buildSingleGalleryReply } = require("../utils/nhDisplay");
+          const gallery = await nh.getGallery(galleryId);
+          const tags = gallery.tags ?? [];
+          const reply = await buildSingleGalleryReply(gallery, tags, nh, db, ownerId, { page: pageNum, isPublic });
+          await interaction.editReply(reply as any).catch(() => {});
+        } catch (e: any) {
+          await interaction.followUp({ content: `❌ ${e?.message ?? "錯誤"}`, ephemeral: true }).catch(() => {});
+        }
+        return;
+      }
 
-			for (let option of interaction.options.data) {
-				if (option.type === ApplicationCommandOptionType.Subcommand) {
-					if (option.name) args.push(option.name);
-					option.options?.forEach((x: any) => {
-						if (x.value) args.push(String(x.value));
-					});
-				} else if (option.value) args.push(String(option.value));
-			}
+      // nh:jump:{galleryId}:{ownerId}:{pub}  (select menu value = pageNum)
+      if (action === "jump") {
+        await interaction.deferUpdate().catch(() => {});
+        const galleryId = parseInt(parts[2]!);
+        const pageNum = parseInt((interaction as any).values?.[0] ?? "1");
+        try {
+          const { buildSingleGalleryReply } = require("../utils/nhDisplay");
+          const gallery = await nh.getGallery(galleryId);
+          const tags = gallery.tags ?? [];
+          const reply = await buildSingleGalleryReply(gallery, tags, nh, db, ownerId, { page: pageNum, isPublic });
+          await interaction.editReply(reply as any).catch(() => {});
+        } catch (e: any) {
+          await interaction.followUp({ content: `❌ ${e?.message ?? "錯誤"}`, ephemeral: true }).catch(() => {});
+        }
+        return;
+      }
 
-			try {
-				const ackPlan = getCommandAckPlan(command, {
-					defaultEphemeral: true
-				});
-				if (ackPlan.shouldDefer) {
-					await ensureDeferredReply(interaction, ackPlan.ephemeral);
-				}
+      if (action === "fav") {
+        await interaction.deferUpdate().catch(() => {});
+        const op = parts[2]!; // add | rm
+        const galleryId = parseInt(parts[3]!);
+        // Team members operate on their own favorites, not the owner's
+        const targetUserId = clickerId;
+        if (op === "add") {
+          db.nhAddFavorite(targetUserId, galleryId);
+          await interaction.followUp({ content: `❤️ 已將 **#${galleryId}** 加入你的收藏。`, ephemeral: true }).catch(() => {});
+        } else {
+          db.nhRemoveFavorite(targetUserId, galleryId);
+          await interaction.followUp({ content: `💔 已從你的收藏移除 **#${galleryId}**。`, ephemeral: true }).catch(() => {});
+        }
+        return;
+      }
 
-				await (command.execute as any)(client, interaction, args, i18n);
+      if (action === "related") {
+        await interaction.deferUpdate().catch(() => {});
+        const galleryId = parseInt(parts[2]!);
+        try {
+          const { buildGalleryListReply } = require("../utils/nhDisplay");
+          let galleries = await nh.getRelated(galleryId);
+          const guildId = interaction.guildId;
+          if (guildId) {
+            const guildBlacklist = db.nhGuildGetBlacklist(guildId);
+            galleries = nh.filterBlacklisted(galleries, guildBlacklist.map((b: any) => b.tag_id));
+          }
+          if (!galleries.length) {
+            await interaction.followUp({ content: "沒有找到相關作品（或皆被伺服器黑名單過濾）。", ephemeral: true }).catch(() => {});
+            return;
+          }
+          const listReply = await buildGalleryListReply(galleries, nh, {
+            pageNum: 1,
+            totalPages: 1,
+            total: galleries.length,
+            ownerId,
+            context: `related:${galleryId}`,
+            isPublic,
+          });
+          const content = isPublic ? `🔗 <@${clickerId}> 開啟了相關作品列表：` : undefined;
+          await interaction.followUp({ content, components: listReply.components as any, files: listReply.files, flags: listReply.flags } as any).catch(() => {});
+        } catch (e: any) {
+          await interaction.followUp({ content: `❌ ${e?.message ?? "錯誤"}`, ephemeral: true }).catch(() => {});
+        }
+      }
 
-				const time = `花費 ${(
-					(Date.now() - interaction.createdTimestamp) /
-					1000
-				).toFixed(2)} 秒`;
+      // nh:select:{encodedCtx}:{ownerId}:{pub} — select a gallery from list
+      if (action === "select") {
+        await interaction.deferUpdate().catch(() => {});
+        const galleryId = parseInt((interaction as any).values?.[0] ?? "0");
+        if (!galleryId) return;
+        try {
+          const { buildSingleGalleryReply } = require("../utils/nhDisplay");
+          const gallery = await nh.getGallery(galleryId);
+          const tags = gallery.tags ?? [];
+          const reply = await buildSingleGalleryReply(gallery, tags, nh, db, ownerId, { page: 1, isPublic });
+          const content = isPublic ? `📖 <@${clickerId}> 點選了本子：` : undefined;
+          await interaction.followUp({ content, ...reply } as any).catch(() => {});
+        } catch (e: any) {
+          await interaction.followUp({ content: `❌ ${e?.message ?? "錯誤"}`, ephemeral: true }).catch(() => {});
+        }
+        return;
+      }
 
-				new Logger("指令").info(
-					`${interaction.user.displayName}(${interaction.user.id}) 執行 ${command.data.name} - ${time}`
-				);
-				webhook.send({
-					embeds: [
-						new EmbedBuilder()
-							.setTimestamp()
-							.setAuthor({
-								iconURL: interaction.user.displayAvatarURL({
-									size: 4096
-								}),
-								name: `${interaction.user.username} - ${interaction.user.id}`
-							})
-							.setThumbnail(
-								interaction.guild?.iconURL({
-									size: 4096
-								}) || null
-							)
-							.setDescription(
-								`\`\`\`${interaction.guild?.name} - ${interaction.guild?.id}\`\`\``
-							)
-							.addFields(
-								{
-									name: command.data.name,
-									value: `\`\`\`${interaction.guild?.name} - ${interaction.guild?.id}\`\`\``,
-									inline: true
-								},
-								{
-									name: "Command",
-									value: `${
-										(interaction.options as any)._subcommand
-											? `> ${(interaction.options as any)._subcommand}`
-											: "\u200b"
-									} ${
-										(interaction.options as any)
-											._hoistedOptions > 0
-											? ` \`${(interaction.options as any)._hoistedOptions[0].value}\``
-											: "\u200b"
-									}`,
-									inline: true
-								}
-							)
-					]
-				});
-			} catch (e: any) {
-				new Logger("指令").error(`錯誤訊息：${e.message}`);
-				if (interaction.isRepliable()) {
-					await replyOrFollowUp(interaction, {
-						content: "哦喲，好像出了一點小問題，請重試",
-						flags: MessageFlags.Ephemeral
-					});
-				}
-			}
-		} else if (interaction.isContextMenuCommand()) {
-			const command = commands.slash.get(interaction.commandName);
-			if (!command) return;
-			try {
-				await (command.execute as any)(client, interaction);
-			} catch (e: any) {
-				new Logger("指令").error(`錯誤訊息：${e.message}`);
-				if (interaction.isRepliable()) {
-					await replyOrFollowUp(interaction, {
-						content: "哦喲，好像出了一點小問題，請重試",
-						flags: MessageFlags.Ephemeral
-					});
-				}
-			}
-		}
-	}
-);
+      // nh:listpage:{encodedCtx}:{pageNum}:{ownerId}:{pub}
+      if (action === "listpage") {
+        await interaction.deferUpdate().catch(() => {});
+        const encodedCtx = parts[2]!;
+        const pageNum = parseInt(parts[3]!);
+        const ctx = decodeURIComponent(encodedCtx);
+        try {
+          const { buildGalleryListReply } = require("../utils/nhDisplay");
+          let galleries: any[] = [];
+          let total = 0;
+          if (ctx.startsWith("browse")) {
+            const res = await nh.getGalleries({ page: pageNum, sort: "date" });
+            galleries = res.result; total = res.total;
+          } else if (ctx.startsWith("popular:")) {
+            const sort = ctx.slice("popular:".length);
+            const res = await nh.getGalleries({ page: pageNum, sort: sort as any });
+            galleries = res.result; total = res.total;
+          } else if (ctx.startsWith("search:")) {
+            const query = ctx.slice("search:".length);
+            const res = await nh.searchGalleries({ query, page: pageNum, sort: "date" });
+            galleries = res.result; total = res.total;
+          } else if (ctx.startsWith("tag:")) {
+            const [, type, name] = ctx.split(":");
+            const res = await nh.searchGalleries({ query: `${type}:"${name}"`, page: pageNum, sort: "date" });
+            galleries = res.result; total = res.total;
+          }
+
+          const guildId = interaction.guildId;
+          if (guildId) {
+            const guildBlacklist = db.nhGuildGetBlacklist(guildId);
+            galleries = nh.filterBlacklisted(galleries, guildBlacklist.map((b: any) => b.tag_id));
+          }
+
+          const totalPages = total ? Math.ceil(total / 20) : 1;
+          const listReply = await buildGalleryListReply(galleries, nh, {
+            pageNum, totalPages, total, ownerId, context: ctx, isPublic,
+          });
+          await interaction.editReply({ components: listReply.components as any, files: listReply.files, flags: listReply.flags } as any).catch(() => {});
+        } catch (e: any) {
+          await interaction.followUp({ content: `❌ ${e?.message ?? "錯誤"}`, ephemeral: true }).catch(() => {});
+        }
+        return;
+      }
+
+      if (action === "dl") {
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
+        const format = parts[2]! as "zip" | "cbz" | "torrent";
+        const galleryId = parseInt(parts[3]!);
+        try {
+          const { url, expires_at } = await nh.getDownloadUrl(galleryId, format);
+          const expiresStr = new Date(expires_at * 1000).toLocaleTimeString("zh-TW");
+          await interaction.editReply({
+            content: `📦 **#${galleryId}** 下載連結（${format.toUpperCase()}）\n${url}\n\n⏰ 有效至 ${expiresStr}`,
+          }).catch(() => {});
+        } catch (e: any) {
+          const msg = e?.message ?? "錯誤";
+          const hint = msg.includes("503") ? "此功能目前已停用（Feature Flag 未開啟）" : msg;
+          await interaction.editReply({ content: `❌ ${hint}` }).catch(() => {});
+        }
+      }
+    }
+  },
+} satisfies Event;

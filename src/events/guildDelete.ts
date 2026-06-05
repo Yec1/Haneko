@@ -1,53 +1,34 @@
-import { client, cluster } from "../index.js";
 import { Events, WebhookClient, EmbedBuilder, Guild } from "discord.js";
+import type { Event } from "../interfaces/Event.js";
 import moment from "moment";
 
-const webhook = new WebhookClient({ url: process.env.JLWEBHOOK! });
+export default {
+  name: Events.GuildDelete,
+  once: false,
+  async execute(guild: Guild) {
+    const webhook = process.env.JLWEBHOOK
+      ? new WebhookClient({ url: process.env.JLWEBHOOK })
+      : null;
+    if (!webhook) return;
 
-client.on(Events.GuildDelete, async (guild: Guild) => {
-	const results = await cluster.broadcastEval(
-		(c: any) => c.guilds.cache.size
-	);
-	const totalGuilds =
-		results?.reduce((prev: number, val: number) => prev + val, 0) || 0;
+    const totalGuilds = guild.client.guilds.cache.size;
 
-	webhook.send({
-		embeds: [
-			new EmbedBuilder()
-				.setColor("#E74C3C")
-				.setThumbnail(guild.iconURL())
-				.setTitle("已離開伺服器")
-				.addFields({
-					name: "名稱",
-					value: `\`${guild.name}\``,
-					inline: false
-				})
-				.addFields({
-					name: "ID",
-					value: `\`${guild.id}\``,
-					inline: false
-				})
-				.addFields({
-					name: "擁有者",
-					value: `<@${guild.ownerId}>`,
-					inline: false
-				})
-				.addFields({
-					name: "人數",
-					value: `\`${guild.memberCount}\` 個成員`,
-					inline: false
-				})
-				.addFields({
-					name: "建立時間",
-					value: `<t:${moment(guild.createdAt).unix()}:F>`,
-					inline: false
-				})
-				.addFields({
-					name: `${client.user?.username} 的伺服器數量`,
-					value: `\`${totalGuilds}\` 個伺服器`,
-					inline: false
-				})
-				.setTimestamp()
-		]
-	});
-});
+    await webhook.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor("#E74C3C")
+          .setThumbnail(guild.iconURL())
+          .setTitle("已離開伺服器")
+          .addFields(
+            { name: "名稱", value: `\`${guild.name}\``, inline: false },
+            { name: "ID", value: `\`${guild.id}\``, inline: false },
+            { name: "擁有者", value: `<@${guild.ownerId}>`, inline: false },
+            { name: "人數", value: `\`${guild.memberCount}\` 個成員`, inline: false },
+            { name: "建立時間", value: `<t:${moment(guild.createdAt).unix()}:F>`, inline: false },
+            { name: `${guild.client.user?.username} 的伺服器數量`, value: `\`${totalGuilds}\` 個伺服器`, inline: false }
+          )
+          .setTimestamp(),
+      ],
+    }).catch(() => {});
+  },
+} satisfies Event;
