@@ -87,7 +87,6 @@ export class CustomDatabase {
     return rows.map(r => r.tag_id);
   }
 
-<<<<<<< HEAD
   // Guild Blacklist (using guild: prefix in discord_user_id)
   nhGuildAddBlacklist(guildId: string, tagId: number, tagName?: string): void {
     this.nhAddBlacklist(`guild:${guildId}`, tagId, tagName);
@@ -111,9 +110,6 @@ export class CustomDatabase {
   nhGuildSetNsfwUnlock(guildId: string, unlocked: boolean): void {
     this.db.prepare("INSERT OR REPLACE INTO json (ID, json) VALUES (?, ?)").run(`guild_nsfw_unlocked:${guildId}`, unlocked ? "true" : "false");
   }
-
-=======
->>>>>>> d3ab5b8135c16d5a7e862c91f093a289cf9f6afb
   // Team management
   teamAdd(ownerId: string, memberId: string): void {
     this.db.prepare("INSERT OR IGNORE INTO teams (owner_id, member_id) VALUES (?, ?)").run(ownerId, memberId);
