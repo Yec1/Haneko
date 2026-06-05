@@ -165,7 +165,7 @@ export default {
           const tags = gallery.tags ?? [];
           const reply = await buildSingleGalleryReply(gallery, tags, nh, db, ownerId, { page: 1, isPublic });
           const content = isPublic ? `📖 <@${clickerId}> 點選了本子：` : undefined;
-          await interaction.followUp({ content, ...reply } as any).catch(() => {});
+          await interaction.editReply({ content, ...reply } as any).catch(() => {});
         } catch (e: any) {
           await interaction.followUp({ content: `❌ ${e?.message ?? "錯誤"}`, ephemeral: true }).catch(() => {});
         }
