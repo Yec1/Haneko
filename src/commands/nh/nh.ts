@@ -249,7 +249,7 @@ const command: Command = {
         const totalPages = Math.ceil(total / PAGE_SIZE);
         const listCtx = sub === "browse" ? "browse"
           : sub === "popular" ? `popular:${interaction.options.getString("period") ?? "popular"}`
-          : sub === "search" ? `search:${interaction.options.getString("query") ?? ""}`
+          : sub === "search" ? `search:${interaction.options.getString("sort") ?? "date"}:${encodeURIComponent(interaction.options.getString("query") ?? "")}`
           : sub === "tag" ? `tag:${interaction.options.getString("type")}:${interaction.options.getString("name")}`
           : sub === "related" ? `related:${interaction.options.getInteger("id")}` : sub ?? "list";
         const listReply = await buildGalleryListReply(galleries, nh, {

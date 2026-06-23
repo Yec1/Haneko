@@ -3,6 +3,7 @@ import type { NHentaiService } from "../services/NHentaiService";
 import type { CustomDatabase } from "./Database";
 import { drawGalleryGrid, type GridItem } from "./canvas";
 import { AttachmentBuilder } from "discord.js";
+import { registerBrowseContext } from "./nhBrowseState";
 
 const TAG_EMOJIS: Record<string, string> = {
   parody: "📺",
@@ -33,15 +34,21 @@ export function formatTagSection(tags: NHTag[]): string {
 /**
  * Build select menu options centered around currentPage ±12 (max 25).
  */
-function buildJumpOptions(galleryId: number, ownerId: string, currentPage: number, totalPages: number, pub: string) {
+function buildJumpOptions(currentPage: number, totalPages: number) {
   const MAX = 25;
   const HALF = 12;
 
   let start = currentPage - HALF;
   let end = currentPage + HALF;
 
-  if (start < 1) { start = 1; end = Math.min(MAX, totalPages); }
-  if (end > totalPages) { end = totalPages; start = Math.max(1, end - MAX + 1); }
+  if (start < 1) {
+    start = 1;
+    end = Math.min(MAX, totalPages);
+  }
+  if (end > totalPages) {
+    end = totalPages;
+    start = Math.max(1, end - MAX + 1);
+  }
 
   const options: object[] = [];
   for (let p = start; p <= end; p++) {
@@ -64,31 +71,38 @@ export async function buildSingleGalleryReply(
   nh: NHentaiService,
   db: CustomDatabase,
   userId: string,
-  opts: { ephemeral?: boolean; page?: number; isPublic?: boolean } = {},
+  opts: {
+    ephemeral?: boolean;
+    page?: number;
+    isPublic?: boolean;
+    source?: {
+      listId: string;
+      listPage: number;
+    };
+  } = {},
 ) {
-  const { ephemeral = false, page = 1, isPublic = false } = opts;
+  const { ephemeral = false, page = 1, isPublic = false, source } = opts;
   const pub = isPublic ? "1" : "0";
   const totalPages = gallery.pages?.length ?? gallery.num_pages;
   const currentPage = Math.max(1, Math.min(page, totalPages));
 
-  // Image URL for current page
   let imageUrl: string;
   if (gallery.pages && gallery.pages[currentPage - 1]) {
-    imageUrl = nh.imageUrl(gallery.pages![currentPage - 1]!.path);
+    imageUrl = nh.imageUrl(gallery.pages[currentPage - 1]!.path);
   } else {
     imageUrl = nh.thumbUrl(gallery);
   }
 
   const isFav = db.nhIsFavorite(userId, gallery.id);
   const title = gallery.title.english || gallery.title.japanese || gallery.title.pretty || `#${gallery.id}`;
-
   const titleText = `## [${title}](${galleryUrl(gallery.id)})\n\`#${gallery.id}\`  •  📄 **${gallery.num_pages}** 頁  •  ❤️ **${gallery.num_favorites}**`;
   const tagsText = tags.length > 0 ? formatTagSection(tags) : null;
 
   let flags = 1 << 15;
   if (ephemeral) flags |= 64;
 
-  const jumpOptions = buildJumpOptions(gallery.id, userId, currentPage, totalPages, pub);
+  const jumpOptions = buildJumpOptions(currentPage, totalPages);
+  const sourceSuffix = source ? `:${source.listId}:${source.listPage}` : "";
 
   const innerComponents: object[] = [
     {
@@ -96,7 +110,7 @@ export async function buildSingleGalleryReply(
       content: titleText,
     },
     {
-      type: 12, // MediaGallery
+      type: 12,
       items: [{ media: { url: imageUrl } }],
     },
     { type: 14, divider: true, spacing: 1 },
@@ -105,38 +119,52 @@ export async function buildSingleGalleryReply(
       components: [
         {
           type: 2,
-          custom_id: `nh:page:${gallery.id}:${currentPage - 1}:${userId}:${pub}`,
+          custom_id: `nh:page:${gallery.id}:${currentPage - 1}:${userId}:${pub}${sourceSuffix}`,
           label: "◀",
           style: 2,
           disabled: currentPage <= 1,
         },
         {
           type: 2,
-          custom_id: `nh:page:${gallery.id}:${currentPage}:${userId}:${pub}:noop`,
+          custom_id: `nh:page:${gallery.id}:${currentPage}:${userId}:${pub}${sourceSuffix}:noop`,
           label: `${currentPage} / ${totalPages}`,
           style: 2,
           disabled: true,
         },
         {
           type: 2,
-          custom_id: `nh:page:${gallery.id}:${currentPage + 1}:${userId}:${pub}`,
+          custom_id: `nh:page:${gallery.id}:${currentPage + 1}:${userId}:${pub}${sourceSuffix}`,
           label: "▶",
           style: 2,
           disabled: currentPage >= totalPages,
         },
       ],
     },
-    ...(jumpOptions.length > 1 ? [{
-      type: 1,
-      components: [{
-        type: 3,
-        custom_id: `nh:jump:${gallery.id}:${userId}:${pub}`,
-        placeholder: `跳至頁面（共 ${totalPages} 頁）`,
-        options: jumpOptions,
-      }],
-    }] : []),
+    ...(jumpOptions.length > 1
+      ? [{
+          type: 1,
+          components: [{
+            type: 3,
+            custom_id: `nh:jump:${gallery.id}:${userId}:${pub}${sourceSuffix}`,
+            placeholder: `跳至頁面（共 ${totalPages} 頁）`,
+            options: jumpOptions,
+          }],
+        }]
+      : []),
     ...(tagsText ? [{ type: 14, divider: true, spacing: 1 }, { type: 10, content: tagsText }] : []),
     { type: 14, divider: true, spacing: 1 },
+    ...(source
+      ? [{
+          type: 1,
+          components: [{
+            type: 2,
+            custom_id: `nh:back:${source.listId}:${source.listPage}:${userId}:${pub}`,
+            label: "返回列表",
+            emoji: { name: "↩️" },
+            style: 1,
+          }],
+        }]
+      : []),
     {
       type: 1,
       components: [
@@ -229,7 +257,7 @@ export async function buildGalleryListReply(
   let flags = 1 << 15;
   if (ephemeral) flags |= 64;
 
-  const encodedCtx = encodeURIComponent(context).slice(0, 60);
+  const listId = registerBrowseContext(context);
 
   const components: object[] = [
     {
@@ -249,34 +277,36 @@ export async function buildGalleryListReply(
           components: [
             {
               type: 3,
-              custom_id: `nh:select:${encodedCtx}:${ownerId}:${pub}`,
+              custom_id: `nh:select:${listId}:${pageNum}:${ownerId}:${pub}`,
               placeholder: "選擇一本查看詳情",
               options: selectOptions,
             },
           ],
         },
-        ...(totalPages > 1 ? [
-          { type: 14, divider: true, spacing: 1 },
-          {
-            type: 1,
-            components: [
+        ...(totalPages > 1
+          ? [
+              { type: 14, divider: true, spacing: 1 },
               {
-                type: 2,
-                custom_id: `nh:listpage:${encodedCtx}:${pageNum - 1}:${ownerId}:${pub}`,
-                label: "◀ 上一頁",
-                style: 2,
-                disabled: pageNum <= 1,
+                type: 1,
+                components: [
+                  {
+                    type: 2,
+                    custom_id: `nh:listpage:${listId}:${pageNum - 1}:${ownerId}:${pub}`,
+                    label: "◀ 上一頁",
+                    style: 2,
+                    disabled: pageNum <= 1,
+                  },
+                  {
+                    type: 2,
+                    custom_id: `nh:listpage:${listId}:${pageNum + 1}:${ownerId}:${pub}`,
+                    label: "下一頁 ▶",
+                    style: 2,
+                    disabled: pageNum >= totalPages,
+                  },
+                ],
               },
-              {
-                type: 2,
-                custom_id: `nh:listpage:${encodedCtx}:${pageNum + 1}:${ownerId}:${pub}`,
-                label: "下一頁 ▶",
-                style: 2,
-                disabled: pageNum >= totalPages,
-              },
-            ],
-          },
-        ] : []),
+            ]
+          : []),
       ],
     },
   ];
