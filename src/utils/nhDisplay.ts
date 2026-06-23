@@ -153,21 +153,18 @@ export async function buildSingleGalleryReply(
       : []),
     ...(tagsText ? [{ type: 14, divider: true, spacing: 1 }, { type: 10, content: tagsText }] : []),
     { type: 14, divider: true, spacing: 1 },
-    ...(source
-      ? [{
-          type: 1,
-          components: [{
-            type: 2,
-            custom_id: `nh:back:${source.listId}:${source.listPage}:${userId}:${pub}`,
-            label: "返回列表",
-            emoji: { name: "↩️" },
-            style: 1,
-          }],
-        }]
-      : []),
     {
       type: 1,
       components: [
+        ...(source
+          ? [{
+              type: 2,
+              custom_id: `nh:back:${source.listId}:${source.listPage}:${userId}:${pub}`,
+              label: "返回列表",
+              emoji: { name: "↩️" },
+              style: 1,
+            }]
+          : []),
         {
           type: 2,
           custom_id: `nh:fav:${isFav ? "rm" : "add"}:${gallery.id}:${userId}:${pub}`,

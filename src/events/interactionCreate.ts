@@ -271,9 +271,7 @@ export default {
             context: `related:${galleryId}`,
             isPublic,
           });
-          const content = isPublic ? `🔗 <@${clickerId}> 開啟了相關作品列表：` : undefined;
           await interaction.followUp({
-            content,
             components: listReply.components as any,
             files: listReply.files,
             flags: listReply.flags,
@@ -303,8 +301,7 @@ export default {
             isPublic,
             source: { listId, listPage },
           });
-          const content = isPublic ? `📖 <@${clickerId}> 點選了本子：` : undefined;
-          await interaction.editReply({ content, ...reply } as any).catch(() => {});
+          await interaction.editReply(reply as any).catch(() => {});
         } catch (e: any) {
           await interaction.followUp({
             content: `❌ ${e?.message ?? "錯誤"}`,
